@@ -79,7 +79,7 @@ function RiskCategories({
           <thead>
             <tr className="bg-purple-50">
               <th className="px-3 py-3 text-purple-700">Category</th>
-              <th className="px-3 py-3 text-purple-700">Risk Level</th>
+              <th className="px-3 py-3 text-purple-700">Financial Risk</th>
               <th className="px-3 py-3 text-purple-700">Approval Risk</th>
             </tr>
           </thead>
