@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Bar } from "react-chartjs-2";
+import { Bar, Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,6 +12,8 @@ import {
   Title,
   Tooltip,
   Legend,
+  LineController,
+  Filler,
 } from "chart.js";
 
 // Register ChartJS components
@@ -23,7 +25,9 @@ ChartJS.register(
   BarElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  LineController,
+  Filler
 );
 
 interface RiskCategory {
@@ -50,6 +54,25 @@ interface FinancialParameters {
   baseCaseCapExPerMW: number;
   baseOpExPerMW: number;
   itcRate: number;
+}
+
+interface ExtendedChartDataset {
+  type?: "line";
+  categoryName: string;
+  label: string;
+  data: number[];
+  borderColor: string;
+  backgroundColor: string;
+  fill: boolean | string | { target: string; above: string };
+  tension: number;
+  order?: number;
+  hidden?: boolean;
+  borderDash?: number[];
+}
+
+interface LegendItem {
+  text: string;
+  datasetIndex?: number;
 }
 
 function RiskCategories({
@@ -255,6 +278,281 @@ const calculateIRR = (cashFlows: number[]): number => {
     return bestRate;
   }
 };
+
+// Add new BoundedLineGraph component before the SensitivityAnalysis component
+function BoundedLineGraph({
+  riskCategories,
+  systemParams,
+  financialParams,
+}: {
+  riskCategories: RiskCategory[];
+  systemParams: SystemParameters;
+  financialParams: FinancialParameters;
+}) {
+  // Add calculateIRR function
+  const calculateIRR = (cashFlows: number[]): number => {
+    let guess = 0.1;
+    const maxIterations = 100;
+    const tolerance = 0.0001;
+
+    for (let i = 0; i < maxIterations; i++) {
+      let npv = 0;
+      let derivative = 0;
+
+      for (let j = 0; j < cashFlows.length; j++) {
+        npv += cashFlows[j] / Math.pow(1 + guess, j);
+        if (j > 0) {
+          derivative += (-j * cashFlows[j]) / Math.pow(1 + guess, j + 1);
+        }
+      }
+
+      const newGuess = guess - npv / derivative;
+      if (Math.abs(newGuess - guess) < tolerance) {
+        return newGuess;
+      }
+      guess = newGuess;
+    }
+    return guess;
+  };
+
+  const calculateCategoryIRR = useCallback(
+    (
+      categoryName: string,
+      riskLevel: "Low" | "High",
+      approvalRisk: number
+    ): number => {
+      // Create a copy of the risk categories
+      const modifiedCategories = riskCategories.map((cat) => {
+        if (cat.name === categoryName) {
+          // Calculate DevEx and CapEx based on risk level
+          const devEx = riskLevel === "Low" ? cat.devExLow : cat.devExHigh;
+          const capExIncrease =
+            riskLevel === "Low" ? cat.capExIncreaseLow : cat.capExIncreaseHigh;
+          const goNoGoProbability = 1 - (0.5 / 14) * (approvalRisk - 1);
+
+          return {
+            ...cat,
+            riskLevel,
+            devEx,
+            capExIncrease,
+            approvalRisk,
+            goNoGoProbability,
+          };
+        }
+        return cat;
+      });
+
+      // Calculate cash flows with the modified risk category
+      const years = systemParams.projectLength;
+      const flows: number[] = [];
+      const expectedFlows: number[] = [];
+      let cumulativeProbability = 1;
+
+      // Development Phase (Year 0)
+      const totalDevEx = modifiedCategories.reduce(
+        (sum, cat) => sum + cat.devEx,
+        0
+      );
+      const totalCapExIncrease = modifiedCategories.reduce(
+        (sum, cat) => sum + cat.capExIncrease,
+        0
+      );
+      const totalCapEx =
+        financialParams.baseCaseCapExPerMW * systemParams.systemSize +
+        totalCapExIncrease;
+      const itcAmount = totalCapEx * financialParams.itcRate;
+
+      // Calculate initial probabilities
+      const initialGoNoGo = modifiedCategories.reduce(
+        (prob, cat) => prob * cat.goNoGoProbability,
+        1
+      );
+
+      // Year 0 (Development)
+      flows.push(-totalDevEx);
+      expectedFlows.push(-totalDevEx * cumulativeProbability);
+
+      cumulativeProbability *= initialGoNoGo;
+
+      // Year 1 (Construction)
+      flows.push(-totalCapEx);
+      expectedFlows.push(-totalCapEx * cumulativeProbability);
+
+      // Year 2 onwards (Operations)
+      const opEx = financialParams.baseOpExPerMW * systemParams.systemSize;
+      let degradationFactor = 1;
+      const electricityRate = 120;
+      const priceEscalation = 0.02;
+      const degradationRate = 0.005;
+      const annualGeneration =
+        systemParams.acSystemSize *
+        (systemParams.capacityFactor / 100) *
+        24 *
+        365;
+
+      for (let i = 2; i <= years; i++) {
+        degradationFactor -= degradationRate;
+        const generation = annualGeneration * degradationFactor;
+        const escalatedRate =
+          electricityRate * Math.pow(1 + priceEscalation, i - 2);
+        const revenue = generation * escalatedRate;
+        const annualOpEx = opEx * Math.pow(1.01, i - 2);
+
+        const cashFlow = revenue - annualOpEx;
+        flows.push(cashFlow);
+        expectedFlows.push(cashFlow * cumulativeProbability);
+      }
+
+      // Add ITC in year 3
+      flows[2] += itcAmount;
+      expectedFlows[2] += itcAmount * cumulativeProbability;
+
+      // Calculate IRR using the expected cash flows
+      return calculateIRR(expectedFlows);
+    },
+    [riskCategories, systemParams, financialParams]
+  );
+
+  const approvalRisks = Array.from({ length: 16 }, (_, i) => i);
+  const chartData = {
+    labels: approvalRisks,
+    datasets: riskCategories.flatMap((category, index) => {
+      const color =
+        {
+          "Site Control": "rgb(255, 99, 132)",
+          Permitting: "rgb(54, 162, 235)",
+          Interconnection: "rgb(75, 192, 192)",
+          Design: "rgb(153, 102, 255)",
+          Environmental: "rgb(255, 159, 64)",
+        }[category.name] || "rgb(201, 203, 207)";
+
+      return [
+        {
+          label: category.name,
+          data: approvalRisks.map(
+            (risk) => calculateCategoryIRR(category.name, "Low", risk) * 100
+          ),
+          borderColor: color,
+          backgroundColor: `${color
+            .replace("rgb", "rgba")
+            .replace(")", ", 0.2)")}`,
+          fill: "+1",
+          tension: 0.4,
+          order: index * 2,
+          categoryName: category.name,
+        },
+        {
+          label: `${category.name} (hidden)`,
+          data: approvalRisks.map(
+            (risk) => calculateCategoryIRR(category.name, "High", risk) * 100
+          ),
+          borderColor: color,
+          borderDash: [5, 5],
+          fill: false,
+          tension: 0.4,
+          order: index * 2 + 1,
+          hidden: false,
+          categoryName: category.name,
+        },
+      ];
+    }),
+  };
+
+  return (
+    <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+      <h2 className="text-2xl font-bold mb-4 text-purple-700">
+        IRR vs Approval Risk by Category
+      </h2>
+      <div className="flex items-center justify-center mb-4 space-x-8">
+        <div className="flex items-center">
+          <div className="w-8 h-0.5 bg-gray-600 mr-2"></div>
+          <span className="text-sm text-gray-600">
+            Low Financial Risk Scenario
+          </span>
+        </div>
+        <div className="flex items-center">
+          <div className="w-8 h-0.5 mr-2 border-t-2 border-dashed border-gray-600"></div>
+          <span className="text-sm text-gray-600">
+            High Financial Risk Scenario
+          </span>
+        </div>
+      </div>
+      <div className="h-[600px]">
+        <Line
+          data={chartData}
+          options={{
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: "top" as const,
+                onClick: (evt, legendItem: LegendItem, legend) => {
+                  const index = legendItem.datasetIndex;
+                  if (index === undefined) return;
+
+                  const chart = legend.chart;
+                  const dataset = chart.data.datasets[
+                    index
+                  ] as ExtendedChartDataset;
+                  const categoryName = dataset.categoryName;
+                  const isHidden = !dataset.hidden;
+
+                  // Toggle visibility for both datasets of this category
+                  chart.data.datasets.forEach((ds) => {
+                    const extendedDs = ds as ExtendedChartDataset;
+                    if (extendedDs.categoryName === categoryName) {
+                      extendedDs.hidden = isHidden;
+                    }
+                  });
+                  chart.update();
+                },
+                labels: {
+                  filter: (item: LegendItem) => !item.text.includes("hidden"),
+                },
+              },
+              title: {
+                display: true,
+                text: "Portfolio IRR vs Approval and Financial Risk",
+                color: "rgb(107, 33, 168)",
+              },
+              tooltip: {
+                callbacks: {
+                  label: (context) =>
+                    `${context.dataset.label}: ${context.parsed.y.toFixed(2)}%`,
+                },
+              },
+              filler: {
+                propagate: false,
+              },
+            },
+            scales: {
+              y: {
+                title: {
+                  display: true,
+                  text: "Portfolio IRR (%)",
+                },
+                ticks: {
+                  callback: (value) => `${value}%`,
+                },
+              },
+              x: {
+                title: {
+                  display: true,
+                  text: "Approval Risk",
+                },
+              },
+            },
+          }}
+        />
+      </div>
+      <p className="mt-4 text-sm text-gray-600">
+        This graph shows how IRR varies with approval risk for each category.
+        The shaded areas represent the range between low and high financial risk
+        levels. Click on a category in the legend to toggle its visibility.
+      </p>
+    </div>
+  );
+}
 
 export default function Home() {
   // Risk Categories
@@ -1147,7 +1445,14 @@ export default function Home() {
             )}
           </div>
 
-          {/* Sensitivity Analysis - Moved before Cash Flow Table */}
+          {/* Add the new bounded line graph before the sensitivity analysis */}
+          <BoundedLineGraph
+            riskCategories={riskCategories}
+            systemParams={systemParams}
+            financialParams={financialParams}
+          />
+
+          {/* Sensitivity Analysis */}
           <div className="mt-8 mb-8">
             <SensitivityAnalysis
               riskCategories={riskCategories}
@@ -1421,10 +1726,7 @@ function SensitivityAnalysis({
       expectedFlows.push(-totalCapEx * cumulativeProbability);
 
       // Year 2 onwards (Operations)
-      const opEx =
-        financialParams.baseOpExPerMW *
-        systemParams.systemSize *
-        systemParams.systemSize;
+      const opEx = financialParams.baseOpExPerMW * systemParams.systemSize;
       let degradationFactor = 1;
       const electricityRate = 120;
       const priceEscalation = 0.02;
@@ -1548,8 +1850,7 @@ function SensitivityAnalysis({
       <p className="mt-4 text-sm text-gray-600">
         This table shows how the Portfolio IRR changes based on different
         combinations of financing risk and approval risk for the selected
-        category. All other parameters remain unchanged. Values below 10% are
-        highlighted in red.
+        category. All other parameters remain unchanged.
       </p>
     </div>
   );
