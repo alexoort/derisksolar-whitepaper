@@ -16,6 +16,15 @@ import {
   Filler,
   TooltipItem,
 } from "chart.js";
+import { RiskCategory } from "./types/risk";
+import { SystemParameters } from "./types/system";
+import { FinancialParameters } from "./types/financial";
+import {
+  calculateCashFlows,
+  calculateGoNoGoProbability,
+  calculateCategoryIRR,
+  calculateSensitivityIRR,
+} from "./utils/cashFlowCalculations";
 
 // Register ChartJS components
 ChartJS.register(
@@ -30,32 +39,6 @@ ChartJS.register(
   LineController,
   Filler
 );
-
-interface RiskCategory {
-  name: string;
-  riskLevel: "Low" | "High";
-  approvalRisk: number;
-  goNoGoProbability: number;
-  devEx: number;
-  capExIncrease: number;
-  devExLow: number;
-  devExHigh: number;
-  capExIncreaseLow: number;
-  capExIncreaseHigh: number;
-}
-
-interface SystemParameters {
-  capacityFactor: number;
-  systemSize: number;
-  acSystemSize: number;
-  projectLength: number;
-}
-
-interface FinancialParameters {
-  baseCaseCapExPerMW: number;
-  baseOpExPerMW: number;
-  itcRate: number;
-}
 
 function RiskCategories({
   riskCategories,
@@ -76,24 +59,30 @@ function RiskCategories({
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4 text-gray-800">
+      <h2 className="text-xl font-semibold mb-4 text-[#004D40]">
         Risk Categories
       </h2>
       <div className="overflow-x-auto">
         <table className="min-w-full text-base">
           <thead>
-            <tr className="bg-purple-50">
-              <th className="px-3 py-3 text-purple-700">Category</th>
-              <th className="px-3 py-3 text-purple-700 relative group">
+            <tr className="bg-[#E0F2F1]">
+              <th className="px-3 py-3 text-[#004D40]">Category</th>
+              <th className="px-3 py-3 text-[#004D40] relative group">
                 Financial Risk
+                <span className="inline-block ml-1 text-xs text-[#004D40]">
+                  ⓘ
+                </span>
                 <div className="absolute hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100] left-1/2 transform -translate-x-1/2 mt-1">
                   Higher risk means each milestone is more likely to end up on
                   the higher end of the budget range, for development and/or
                   capital expenses.
                 </div>
               </th>
-              <th className="px-3 py-3 text-purple-700 relative group">
+              <th className="px-3 py-3 text-[#004D40] relative group">
                 Approval Risk
+                <span className="inline-block ml-1 text-xs text-[#004D40]">
+                  ⓘ
+                </span>
                 <div className="absolute hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100] right-0 mt-1">
                   Indicates the likelihood of the project advancing to
                   subsequent milestones. Higher risk means the project is less
@@ -105,13 +94,13 @@ function RiskCategories({
           </thead>
           <tbody>
             {riskCategories.map((category, index) => (
-              <tr key={index} className="border-b border-purple-100">
-                <td className="px-3 py-3 font-medium text-purple-700">
+              <tr key={index} className="border-b border-[#B2DFDB]">
+                <td className="px-3 py-3 font-medium text-[#004D40]">
                   {category.name}
                 </td>
                 <td className="px-3 py-3">
                   <select
-                    className="w-full p-2 border border-purple-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full p-2 border border-[#B2DFDB] rounded-md focus:outline-none focus:ring-2 focus:ring-[#00695C]"
                     value={category.riskLevel}
                     onChange={(e) => {
                       const newCategories = [...riskCategories];
@@ -129,7 +118,7 @@ function RiskCategories({
                 <td className="px-3 py-3">
                   <input
                     type="number"
-                    className="w-full p-2 border border-purple-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full p-2 border border-[#B2DFDB] rounded-md focus:outline-none focus:ring-2 focus:ring-[#00695C]"
                     value={category.approvalRisk}
                     onChange={(e) => {
                       const newCategories = [...riskCategories];
@@ -138,7 +127,8 @@ function RiskCategories({
                       );
                       newCategories[index].goNoGoProbability =
                         calculateGoNoGoProbability(
-                          newCategories[index].approvalRisk
+                          newCategories[index].approvalRisk,
+                          newCategories[index].worstCaseScenario
                         );
                       setRiskCategories(newCategories);
                     }}
@@ -154,11 +144,6 @@ function RiskCategories({
     </div>
   );
 }
-
-// Add this helper function before the component
-const calculateGoNoGoProbability = (approvalRisk: number): number => {
-  return 1 - (0.5 / 14) * (approvalRisk - 1);
-};
 
 // Update the IRR calculation functions
 function npv(cashFlows: number[], rate: number): number {
@@ -251,7 +236,7 @@ const calculateIRR = (cashFlows: number[]): number => {
       (r) => npvDerivative(cashFlows, r),
       0.1, // Initial guess
       0.00001, // Tolerance
-      100 // Max iterations
+      1000 // Max iterations
     );
   } catch (error) {
     console.log("Newton-Raphson method failed:", error);
@@ -276,129 +261,44 @@ const calculateIRR = (cashFlows: number[]): number => {
   }
 };
 
-// Remove BoundedLineGraph component
 function SplitRiskGraph({
   riskCategories,
   systemParams,
-  financialParams,
+  financialParameters,
 }: {
   riskCategories: RiskCategory[];
   systemParams: SystemParameters;
-  financialParams: FinancialParameters;
+  financialParameters: FinancialParameters;
 }) {
-  // Helper function to calculate IRR for a given category, risk level, and approval risk
-  const calculateCategoryIRR = useCallback(
+  const calculateCategoryIRRCallback = useCallback(
     (
       categoryName: string,
       riskLevel: "Low" | "High",
       approvalRisk: number
     ): number => {
-      // Create a modified copy of the risk categories
-      const modifiedCategories = riskCategories.map((cat) => {
-        if (cat.name === categoryName) {
-          const devEx = riskLevel === "Low" ? cat.devExLow : cat.devExHigh;
-          const capExIncrease =
-            riskLevel === "Low" ? cat.capExIncreaseLow : cat.capExIncreaseHigh;
-          const goNoGoProbability = 1 - (0.5 / 14) * (approvalRisk - 1);
-
-          return {
-            ...cat,
-            riskLevel,
-            devEx,
-            capExIncrease,
-            approvalRisk,
-            goNoGoProbability,
-          };
-        }
-        return cat;
-      });
-
-      // Project length in years
-      const years = systemParams.projectLength;
-
-      // Arrays for cash flows (raw and probability-weighted)
-      const flows: number[] = [];
-      const expectedFlows: number[] = [];
-      let cumulativeProbability = 1;
-
-      // Gather needed sums
-      const totalDevEx = modifiedCategories.reduce(
-        (sum, cat) => sum + cat.devEx,
-        0
+      return calculateCategoryIRR(
+        categoryName,
+        riskLevel,
+        approvalRisk,
+        riskCategories,
+        systemParams,
+        financialParameters
       );
-      const totalCapExIncrease = modifiedCategories.reduce(
-        (sum, cat) => sum + cat.capExIncrease,
-        0
-      );
-      const totalCapEx =
-        financialParams.baseCaseCapExPerMW * systemParams.systemSize +
-        totalCapExIncrease;
-      const itcAmount = totalCapEx * financialParams.itcRate;
-
-      // Calculate initial go/no-go probability
-      const initialGoNoGo = modifiedCategories.reduce(
-        (prob, cat) => prob * cat.goNoGoProbability,
-        1
-      );
-
-      // Year 0 (Development cost)
-      flows.push(-totalDevEx);
-      expectedFlows.push(-totalDevEx * cumulativeProbability);
-      cumulativeProbability *= initialGoNoGo;
-
-      // Year 1 (Construction cost)
-      flows.push(-totalCapEx);
-      expectedFlows.push(-totalCapEx * cumulativeProbability);
-
-      // Operating years (starting Year 2)
-      const opEx = financialParams.baseOpExPerMW * systemParams.systemSize;
-      let degradationFactor = 1;
-      const electricityRate = 120;
-      const priceEscalation = 0.02;
-      const degradationRate = 0.005;
-      const annualGeneration =
-        systemParams.acSystemSize *
-        (systemParams.capacityFactor / 100) *
-        24 *
-        365;
-
-      for (let i = 2; i <= years; i++) {
-        degradationFactor -= degradationRate;
-        const generation = annualGeneration * degradationFactor;
-        const escalatedRate =
-          electricityRate * Math.pow(1 + priceEscalation, i - 2);
-        const revenue = generation * escalatedRate;
-        const annualOpEx = opEx * Math.pow(1.01, i - 2);
-
-        const cashFlow = revenue - annualOpEx;
-        flows.push(cashFlow);
-        expectedFlows.push(cashFlow * cumulativeProbability);
-      }
-
-      // Add ITC in year 2
-      flows[2] += itcAmount;
-      expectedFlows[2] += itcAmount * cumulativeProbability;
-
-      // Return the IRR based on expected (probability-weighted) flows
-      return calculateIRR(expectedFlows);
     },
-    [riskCategories, systemParams, financialParams]
+    [riskCategories, systemParams, financialParameters]
   );
 
-  // Approval risks from 0 to 15
   const approvalRisks = Array.from({ length: 16 }, (_, i) => i);
 
-  // Pre-calculate all IRR values to determine the min/max for consistent y-axis
   const allIRRs = riskCategories.flatMap((category) =>
     approvalRisks.flatMap((risk) => [
-      calculateCategoryIRR(category.name, "Low", risk) * 100,
-      calculateCategoryIRR(category.name, "High", risk) * 100,
+      calculateCategoryIRRCallback(category.name, "Low", risk) * 100,
+      calculateCategoryIRRCallback(category.name, "High", risk) * 100,
     ])
   );
   const minIRR = Math.floor(Math.min(...allIRRs));
   const maxIRR = Math.ceil(Math.max(...allIRRs));
 
-  // Simple color mapping for each risk category
   const categoryColors: Record<string, string> = {
     "Site Control": "rgb(255, 99, 132)",
     Permitting: "rgb(54, 162, 235)",
@@ -407,7 +307,6 @@ function SplitRiskGraph({
     Environmental: "rgb(255, 159, 64)",
   };
 
-  // Helper to get Chart.js options, reusing min/max IRR
   const getChartOptions = (index: number) => ({
     responsive: true,
     maintainAspectRatio: false,
@@ -416,7 +315,7 @@ function SplitRiskGraph({
       title: {
         display: true,
         text: riskCategories[index].name,
-        color: "rgb(107, 33, 168)",
+        color: "#004D40",
         font: { size: 14 },
         padding: { bottom: 15 },
       },
@@ -485,7 +384,7 @@ function SplitRiskGraph({
 
   return (
     <div className="mt-12 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-      <h2 className="text-2xl font-bold mb-4 text-purple-700">
+      <h2 className="text-2xl font-bold mb-4 text-[#004D40]">
         Risk Category Analysis
       </h2>
       <div className="flex items-center justify-center mb-4 space-x-8">
@@ -509,7 +408,8 @@ function SplitRiskGraph({
                 label: `${category.name} (Low Risk)`,
                 data: approvalRisks.map(
                   (risk) =>
-                    calculateCategoryIRR(category.name, "Low", risk) * 100
+                    calculateCategoryIRRCallback(category.name, "Low", risk) *
+                    100
                 ),
                 borderColor: color,
                 backgroundColor: color
@@ -522,7 +422,8 @@ function SplitRiskGraph({
                 label: `${category.name} (High Risk)`,
                 data: approvalRisks.map(
                   (risk) =>
-                    calculateCategoryIRR(category.name, "High", risk) * 100
+                    calculateCategoryIRRCallback(category.name, "High", risk) *
+                    100
                 ),
                 borderColor: color,
                 borderDash: [5, 5],
@@ -564,11 +465,12 @@ export default function Home() {
       devEx: 7700,
       capExIncrease: 0,
       approvalRisk: 5,
-      goNoGoProbability: calculateGoNoGoProbability(5),
+      goNoGoProbability: calculateGoNoGoProbability(5, 0.3),
       devExLow: 7700,
       devExHigh: 9000,
       capExIncreaseLow: 0,
       capExIncreaseHigh: 0,
+      worstCaseScenario: 0.3,
     },
     {
       name: "Permitting",
@@ -576,11 +478,12 @@ export default function Home() {
       devEx: 40000,
       capExIncrease: 0,
       approvalRisk: 6,
-      goNoGoProbability: calculateGoNoGoProbability(6),
+      goNoGoProbability: calculateGoNoGoProbability(6, 0.3),
       devExLow: 40000,
       devExHigh: 90000,
       capExIncreaseLow: 0,
       capExIncreaseHigh: 0,
+      worstCaseScenario: 0.3,
     },
     {
       name: "Interconnection",
@@ -588,11 +491,12 @@ export default function Home() {
       devEx: 146250,
       capExIncrease: 250000,
       approvalRisk: 8,
-      goNoGoProbability: calculateGoNoGoProbability(8),
+      goNoGoProbability: calculateGoNoGoProbability(8, 0.75),
       devExLow: 146250,
       devExHigh: 157750,
       capExIncreaseLow: 250000,
       capExIncreaseHigh: 2000000,
+      worstCaseScenario: 0.75,
     },
     {
       name: "Design",
@@ -600,11 +504,12 @@ export default function Home() {
       devEx: 44500,
       capExIncrease: 150000,
       approvalRisk: 2,
-      goNoGoProbability: calculateGoNoGoProbability(2),
+      goNoGoProbability: calculateGoNoGoProbability(2, 0.9),
       devExLow: 44500,
       devExHigh: 52500,
       capExIncreaseLow: 150000,
       capExIncreaseHigh: 2000000,
+      worstCaseScenario: 0.9,
     },
     {
       name: "Environmental",
@@ -612,11 +517,12 @@ export default function Home() {
       devEx: 26750,
       capExIncrease: 0,
       approvalRisk: 6,
-      goNoGoProbability: calculateGoNoGoProbability(6),
+      goNoGoProbability: calculateGoNoGoProbability(6, 0.5),
       devExLow: 26750,
       devExHigh: 53000,
       capExIncreaseLow: 0,
       capExIncreaseHigh: 250000,
+      worstCaseScenario: 0.5,
     },
   ]);
 
@@ -625,15 +531,20 @@ export default function Home() {
     capacityFactor: 20,
     systemSize: 3,
     acSystemSize: 2.4,
-    projectLength: 30,
+    projectLength: 25,
+    degradationRate: 0.005,
   });
 
   // Financial Parameters
-  const [financialParams, setFinancialParams] = useState<FinancialParameters>({
-    baseCaseCapExPerMW: 900000,
-    baseOpExPerMW: 12500,
-    itcRate: 0.3,
-  });
+  const [financialParameters, setFinancialParameters] =
+    useState<FinancialParameters>({
+      baseCaseCapExPerMW: 1850000, // $1.85/Watt * 1000000
+      baseOpExPerMW: 22500, // Updated OpEx based on new model
+      itcRate: 0.3,
+      nySunIncentivePerWatt: 0.17,
+      electricityRate: 100,
+      priceEscalation: 0.02,
+    });
 
   const [cashFlows, setCashFlows] = useState<number[]>([]);
   const [expectedCashFlows, setExpectedCashFlows] = useState<number[]>([]);
@@ -647,6 +558,9 @@ export default function Home() {
   const [successfulProjectIRR, setSuccessfulProjectIRR] = useState<number>(0);
   const [portfolioIRR, setPortfolioIRR] = useState<number>(0);
 
+  // Add this with the other state declarations at the top of the component
+  const [projectsReachingNTP, setProjectsReachingNTP] = useState<number>(0);
+
   // Update IRR calculations when cash flows change
   useEffect(() => {
     if (cashFlows.length > 0) {
@@ -657,112 +571,54 @@ export default function Home() {
     }
   }, [cashFlows, expectedCashFlows]);
 
-  const calculateCashFlows = useCallback(() => {
-    const years = systemParams.projectLength;
-    const flows: number[] = [];
-    const expectedFlows: number[] = [];
-    let cumulativeProbability = 1;
-
-    // Development Phase (Year 0)
-    const totalDevEx = riskCategories.reduce((sum, cat) => sum + cat.devEx, 0);
-    const totalCapExIncrease = riskCategories.reduce(
-      (sum, cat) => sum + cat.capExIncrease,
-      0
-    );
-    const totalCapEx =
-      financialParams.baseCaseCapExPerMW * systemParams.systemSize +
-      totalCapExIncrease;
-    const itcAmount = totalCapEx * financialParams.itcRate;
-
-    // Calculate initial probabilities
-    const initialGoNoGo = riskCategories.reduce(
-      (prob, cat) => prob * calculateGoNoGoProbability(cat.approvalRisk),
-      1
-    );
-
-    // Year 0 (Development)
-    flows.push(-totalDevEx);
-    expectedFlows.push(-totalDevEx * cumulativeProbability);
-
-    cumulativeProbability *= initialGoNoGo;
-
-    // Year 1 (Construction)
-    flows.push(-totalCapEx);
-    expectedFlows.push(-totalCapEx * cumulativeProbability);
-
-    // Year 2 onwards (Operations)
-    const opEx = financialParams.baseOpExPerMW * systemParams.systemSize;
-    let degradationFactor = 1;
-    const electricityRate = 120;
-    const priceEscalation = 0.02;
-    const degradationRate = 0.005;
-    const annualGeneration =
-      systemParams.acSystemSize *
-      (systemParams.capacityFactor / 100) *
-      24 *
-      365;
-
-    for (let i = 2; i <= years; i++) {
-      degradationFactor -= degradationRate;
-      const generation = annualGeneration * degradationFactor;
-      const escalatedRate =
-        electricityRate * Math.pow(1 + priceEscalation, i - 2);
-      const revenue = generation * escalatedRate;
-      const annualOpEx = opEx * Math.pow(1.01, i - 2);
-
-      const cashFlow = revenue - annualOpEx;
-      flows.push(cashFlow);
-      expectedFlows.push(cashFlow * cumulativeProbability);
-    }
-
-    // Add ITC in year 3
-    flows[2] += itcAmount;
-    expectedFlows[2] += itcAmount * cumulativeProbability;
-
+  // Update the cash flow calculation to use the imported function
+  const calculateCashFlowsCallback = useCallback(() => {
+    const {
+      flows,
+      expectedFlows,
+      successfulProjectIRR,
+      portfolioIRR,
+      projectsReachingNTP,
+    } = calculateCashFlows(riskCategories, systemParams, financialParameters);
     setCashFlows(flows);
     setExpectedCashFlows(expectedFlows);
-
-    // Calculate IRR values
-    if (flows.length > 0) {
-      setSuccessfulProjectIRR(calculateIRR(flows));
-    }
-    if (expectedFlows.length > 0) {
-      setPortfolioIRR(calculateIRR(expectedFlows));
-    }
-  }, [riskCategories, systemParams, financialParams]);
+    setSuccessfulProjectIRR(successfulProjectIRR);
+    setPortfolioIRR(portfolioIRR);
+    setProjectsReachingNTP(projectsReachingNTP);
+  }, [riskCategories, systemParams, financialParameters]);
 
   useEffect(() => {
-    calculateCashFlows();
-  }, [calculateCashFlows]);
+    calculateCashFlowsCallback();
+  }, [calculateCashFlowsCallback]);
 
   // Update the chart data to use the project length
   const chartData = {
     individual: {
-      labels: Array(systemParams.projectLength + 1)
+      labels: Array(systemParams.projectLength + 2)
         .fill(0)
         .map((_, i) => `Year ${i}`),
       datasets: [
         {
           label: "DevEx",
-          data: Array(systemParams.projectLength + 1)
+          data: Array(systemParams.projectLength + 2)
             .fill(0)
             .map((_, i) =>
               i === 0
                 ? -riskCategories.reduce((sum, cat) => sum + cat.devEx, 0)
                 : 0
             ),
-          backgroundColor: "rgba(255, 0, 0, 0.6)",
-          borderColor: "rgb(255, 0, 0)",
+          backgroundColor: "rgba(220, 80, 100, 0.7)", // Darker red with green undertone
+          borderColor: "rgb(200, 60, 80)",
           borderWidth: 1,
         },
         {
           label: "CapEx",
-          data: Array(systemParams.projectLength + 1)
+          data: Array(systemParams.projectLength + 2)
             .fill(0)
             .map((_, i) =>
               i === 1
                 ? -(
-                    financialParams.baseCaseCapExPerMW *
+                    financialParameters.baseCaseCapExPerMW *
                       systemParams.systemSize +
                     riskCategories.reduce(
                       (sum, cat) => sum + cat.capExIncrease,
@@ -771,118 +627,127 @@ export default function Home() {
                   )
                 : 0
             ),
-          backgroundColor: "rgba(255, 165, 0, 0.6)",
-          borderColor: "rgb(255, 165, 0)",
+          backgroundColor: "rgba(45, 145, 190, 0.7)", // Deeper blue with green undertone
+          borderColor: "rgb(35, 125, 170)",
           borderWidth: 1,
         },
         {
           label: "OpEx",
-          data: Array(systemParams.projectLength + 1)
+          data: Array(systemParams.projectLength + 2)
             .fill(0)
             .map((_, i) =>
               i > 1
                 ? -(
-                    financialParams.baseOpExPerMW *
+                    financialParameters.baseOpExPerMW *
                     systemParams.systemSize *
-                    Math.pow(1.01, i - 2)
+                    Math.pow(1 + financialParameters.priceEscalation, i - 2)
                   )
                 : 0
             ),
-          backgroundColor: "rgba(255, 0, 255, 0.6)",
-          borderColor: "rgb(255, 0, 255)",
+          backgroundColor: "rgba(65, 170, 160, 0.7)", // Teal with more green
+          borderColor: "rgb(55, 150, 140)",
           borderWidth: 1,
         },
         {
           label: "Revenue",
-          data: Array(systemParams.projectLength + 1)
+          data: Array(systemParams.projectLength + 2)
             .fill(0)
-            .map((_, i) =>
-              i > 1
-                ? systemParams.acSystemSize *
-                  (systemParams.capacityFactor / 100) *
-                  24 *
-                  365 *
-                  (1 - 0.005 * (i - 2)) *
-                  120 *
-                  Math.pow(1 + 0.02, i - 2)
-                : 0
-            ),
-          backgroundColor: "rgba(0, 0, 255, 0.6)",
-          borderColor: "rgb(0, 0, 255)",
+            .map((_, i) => {
+              if (i <= 1) return 0;
+              const degradationFactor =
+                i === 2 ? 1 : 1 - systemParams.degradationRate * (i - 2);
+              const generation =
+                systemParams.acSystemSize *
+                (systemParams.capacityFactor / 100) *
+                24 *
+                365 *
+                degradationFactor;
+              const escalatedRate =
+                financialParameters.electricityRate *
+                Math.pow(1 + financialParameters.priceEscalation, i - 2);
+              return generation * escalatedRate;
+            }),
+          backgroundColor: "rgba(130, 90, 190, 0.7)", // Deeper purple with green undertone
+          borderColor: "rgb(110, 70, 170)",
           borderWidth: 1,
         },
         {
           label: "ITC",
-          data: Array(systemParams.projectLength + 1)
+          data: Array(systemParams.projectLength + 2)
             .fill(0)
             .map((_, i) =>
               i === 2
-                ? (financialParams.baseCaseCapExPerMW *
+                ? (financialParameters.baseCaseCapExPerMW *
                     systemParams.systemSize +
                     riskCategories.reduce(
                       (sum, cat) => sum + cat.capExIncrease,
                       0
                     )) *
-                  financialParams.itcRate
+                  financialParameters.itcRate
                 : 0
             ),
-          backgroundColor: "rgba(0, 255, 0, 0.6)",
-          borderColor: "rgb(0, 255, 0)",
+          backgroundColor: "rgba(225, 140, 50, 0.7)", // Deeper orange with green undertone
+          borderColor: "rgb(205, 120, 30)",
+          borderWidth: 1,
+        },
+        {
+          label: "NY Sun",
+          data: Array(systemParams.projectLength + 2)
+            .fill(0)
+            .map((_, i) =>
+              i === 1
+                ? systemParams.systemSize *
+                  1000000 *
+                  financialParameters.nySunIncentivePerWatt
+                : 0
+            ),
+          backgroundColor: "rgba(80, 160, 120, 0.7)", // Professional green
+          borderColor: "rgb(60, 140, 100)",
           borderWidth: 1,
         },
       ],
     },
     portfolio: {
-      labels: Array(systemParams.projectLength + 1)
+      labels: Array(systemParams.projectLength + 2) // +2 for dev and construction years
         .fill(0)
         .map((_, i) => `Year ${i}`),
       datasets: [
         {
           label: "DevEx",
-          data: Array(systemParams.projectLength + 1)
+          data: Array(systemParams.projectLength + 2)
             .fill(0)
             .map((_, i) => {
-              // Calculate cumulative probability correctly
               let cumulativeProbability = 1;
-
-              // For year 0, probability is 100%
-              // For year 1 and beyond, apply the cumulative probability
               if (i > 0) {
                 cumulativeProbability = riskCategories.reduce(
                   (prob, cat) => prob * cat.goNoGoProbability,
                   1
                 );
               }
-
               return i === 0
                 ? -riskCategories.reduce((sum, cat) => sum + cat.devEx, 0) *
                     cumulativeProbability
                 : 0;
             }),
-          backgroundColor: "rgba(255, 0, 0, 0.6)",
-          borderColor: "rgb(255, 0, 0)",
-          borderWidth: 1,
+          backgroundColor: "rgba(0, 77, 64, 0.2)", // Paces dark green with opacity
+          borderColor: "#004D40", // Paces dark green
+          borderWidth: 2,
         },
         {
           label: "CapEx",
-          data: Array(systemParams.projectLength + 1)
+          data: Array(systemParams.projectLength + 2)
             .fill(0)
             .map((_, i) => {
-              // Calculate cumulative probability correctly
               let cumulativeProbability = 1;
-
-              // For year 0, probability is 100%
-              // For year 1 and beyond, apply the cumulative probability
               if (i > 0) {
                 cumulativeProbability = riskCategories.reduce(
                   (prob, cat) => prob * cat.goNoGoProbability,
                   1
                 );
               }
-
               return i === 1
                 ? -(
-                    financialParams.baseCaseCapExPerMW *
+                    financialParameters.baseCaseCapExPerMW *
                       systemParams.systemSize +
                     riskCategories.reduce(
                       (sum, cat) => sum + cat.capExIncrease,
@@ -891,49 +756,42 @@ export default function Home() {
                   ) * cumulativeProbability
                 : 0;
             }),
-          backgroundColor: "rgba(255, 165, 0, 0.6)",
-          borderColor: "rgb(255, 165, 0)",
-          borderWidth: 1,
+          backgroundColor: "rgba(0, 105, 92, 0.2)", // Slightly lighter green with opacity
+          borderColor: "#00695C", // Slightly lighter green
+          borderWidth: 2,
         },
         {
           label: "OpEx",
-          data: Array(systemParams.projectLength + 1)
+          data: Array(systemParams.projectLength + 2)
             .fill(0)
             .map((_, i) => {
-              // Calculate cumulative probability correctly
               let cumulativeProbability = 1;
-
-              // For year 0, probability is 100%
-              // For year 1 and beyond, apply the cumulative probability
               if (i > 0) {
                 cumulativeProbability = riskCategories.reduce(
                   (prob, cat) => prob * cat.goNoGoProbability,
                   1
                 );
               }
-
               return i > 1
                 ? -(
-                    financialParams.baseOpExPerMW *
+                    financialParameters.baseOpExPerMW *
                     systemParams.systemSize *
-                    Math.pow(1.01, i - 2)
+                    Math.pow(1 + financialParameters.priceEscalation, i - 2)
                   ) * cumulativeProbability
                 : 0;
             }),
-          backgroundColor: "rgba(255, 0, 255, 0.6)",
-          borderColor: "rgb(255, 0, 255)",
-          borderWidth: 1,
+          backgroundColor: "rgba(0, 137, 123, 0.2)", // Even lighter green with opacity
+          borderColor: "#00897B", // Even lighter green
+          borderWidth: 2,
         },
         {
           label: "Revenue",
-          data: Array(systemParams.projectLength + 1)
+          data: Array(systemParams.projectLength + 2)
             .fill(0)
             .map((_, i) => {
-              // Calculate cumulative probability correctly
-              let cumulativeProbability = 1;
+              if (i <= 1) return 0;
 
-              // For year 0, probability is 100%
-              // For year 1 and beyond, apply the cumulative probability
+              let cumulativeProbability = 1;
               if (i > 0) {
                 cumulativeProbability = riskCategories.reduce(
                   (prob, cat) => prob * cat.goNoGoProbability,
@@ -941,52 +799,73 @@ export default function Home() {
                 );
               }
 
-              return i > 1
-                ? systemParams.acSystemSize *
-                    (systemParams.capacityFactor / 100) *
-                    24 *
-                    365 *
-                    (1 - 0.005 * (i - 2)) *
-                    120 *
-                    Math.pow(1 + 0.02, i - 2) *
-                    cumulativeProbability
-                : 0;
+              const degradationFactor =
+                i === 2 ? 1 : 1 - systemParams.degradationRate * (i - 2);
+              const generation =
+                systemParams.acSystemSize *
+                (systemParams.capacityFactor / 100) *
+                24 *
+                365 *
+                degradationFactor;
+              const escalatedRate =
+                financialParameters.electricityRate *
+                Math.pow(1 + financialParameters.priceEscalation, i - 2);
+
+              return generation * escalatedRate * cumulativeProbability;
             }),
-          backgroundColor: "rgba(0, 0, 255, 0.6)",
-          borderColor: "rgb(0, 0, 255)",
-          borderWidth: 1,
+          backgroundColor: "rgba(178, 223, 219, 0.2)", // Lightest green with opacity
+          borderColor: "#B2DFDB", // Lightest green
+          borderWidth: 2,
         },
         {
           label: "ITC",
-          data: Array(systemParams.projectLength + 1)
+          data: Array(systemParams.projectLength + 2)
             .fill(0)
             .map((_, i) => {
-              // Calculate cumulative probability correctly
               let cumulativeProbability = 1;
-
-              // For year 0, probability is 100%
-              // For year 1 and beyond, apply the cumulative probability
               if (i > 0) {
                 cumulativeProbability = riskCategories.reduce(
                   (prob, cat) => prob * cat.goNoGoProbability,
                   1
                 );
               }
-
               return i === 2
-                ? (financialParams.baseCaseCapExPerMW *
+                ? (financialParameters.baseCaseCapExPerMW *
                     systemParams.systemSize +
                     riskCategories.reduce(
                       (sum, cat) => sum + cat.capExIncrease,
                       0
                     )) *
-                    financialParams.itcRate *
+                    financialParameters.itcRate *
                     cumulativeProbability
                 : 0;
             }),
-          backgroundColor: "rgba(0, 255, 0, 0.6)",
-          borderColor: "rgb(0, 255, 0)",
-          borderWidth: 1,
+          backgroundColor: "rgba(0, 77, 64, 0.2)", // Paces dark green with opacity
+          borderColor: "#004D40", // Paces dark green
+          borderWidth: 2,
+        },
+        {
+          label: "NY Sun",
+          data: Array(systemParams.projectLength + 2)
+            .fill(0)
+            .map((_, i) => {
+              let cumulativeProbability = 1;
+              if (i > 0) {
+                cumulativeProbability = riskCategories.reduce(
+                  (prob, cat) => prob * cat.goNoGoProbability,
+                  1
+                );
+              }
+              return i === 1
+                ? systemParams.systemSize *
+                    1000000 *
+                    financialParameters.nySunIncentivePerWatt *
+                    cumulativeProbability
+                : 0;
+            }),
+          backgroundColor: "rgba(0, 77, 64, 0.2)", // Paces dark green with opacity
+          borderColor: "#004D40", // Paces dark green
+          borderWidth: 2,
         },
       ],
     },
@@ -995,14 +874,14 @@ export default function Home() {
   // Add a function to download cash flow table as CSV
   const downloadCashFlowCSV = () => {
     let csvContent = "Category,";
-    for (let i = 0; i <= systemParams.projectLength; i++) {
+    for (let i = 0; i <= systemParams.projectLength + 1; i++) {
       csvContent += `Year ${i},`;
     }
     csvContent = csvContent.slice(0, -1) + "\n";
 
     // Add DevEx row
     csvContent += "DevEx,";
-    for (let i = 0; i <= systemParams.projectLength; i++) {
+    for (let i = 0; i <= systemParams.projectLength + 1; i++) {
       csvContent +=
         i === 0
           ? `$${Math.round(
@@ -1014,11 +893,11 @@ export default function Home() {
 
     // Add CapEx row
     csvContent += "CapEx,";
-    for (let i = 0; i <= systemParams.projectLength; i++) {
+    for (let i = 0; i <= systemParams.projectLength + 1; i++) {
       csvContent +=
         i === 1
           ? `$${Math.round(
-              financialParams.baseCaseCapExPerMW * systemParams.systemSize +
+              financialParameters.baseCaseCapExPerMW * systemParams.systemSize +
                 riskCategories.reduce((sum, cat) => sum + cat.capExIncrease, 0)
             ).toLocaleString()},`
           : ",";
@@ -1027,13 +906,13 @@ export default function Home() {
 
     // Add OpEx row
     csvContent += "OpEx,";
-    for (let i = 0; i <= systemParams.projectLength; i++) {
+    for (let i = 0; i <= systemParams.projectLength + 1; i++) {
       csvContent +=
         i > 1
           ? `$${Math.round(
-              financialParams.baseOpExPerMW *
+              financialParameters.baseOpExPerMW *
                 systemParams.systemSize *
-                Math.pow(1.01, i - 2)
+                Math.pow(1 + financialParameters.priceEscalation, i - 2)
             ).toLocaleString()},`
           : ",";
     }
@@ -1041,7 +920,7 @@ export default function Home() {
 
     // Add Revenue row
     csvContent += "Revenue,";
-    for (let i = 0; i <= systemParams.projectLength; i++) {
+    for (let i = 0; i <= systemParams.projectLength + 1; i++) {
       csvContent +=
         i > 1
           ? `$${Math.round(
@@ -1050,8 +929,8 @@ export default function Home() {
                 24 *
                 365 *
                 (1 - 0.005 * (i - 2)) *
-                120 *
-                Math.pow(1 + 0.02, i - 2)
+                financialParameters.electricityRate *
+                Math.pow(1 + financialParameters.priceEscalation, i - 2)
             ).toLocaleString()},`
           : ",";
     }
@@ -1073,7 +952,7 @@ export default function Home() {
 
     // Add % of projects row
     csvContent += "% of projects,";
-    for (let i = 0; i <= systemParams.projectLength; i++) {
+    for (let i = 0; i <= systemParams.projectLength + 1; i++) {
       let cumulativeProbability = 1;
       if (i > 0) {
         cumulativeProbability = riskCategories.reduce(
@@ -1097,22 +976,87 @@ export default function Home() {
     document.body.removeChild(link);
   };
 
+  // Add logging for Go/No-Go probabilities
+  useEffect(() => {
+    console.log("Go/No-Go Probabilities for each category:");
+    riskCategories.forEach((category: RiskCategory) => {
+      console.log(
+        `${category.name}: ${(category.goNoGoProbability * 100).toFixed(2)}%`
+      );
+    });
+  }, [riskCategories]);
+
+  // Add summary logging for cash flows
+  useEffect(() => {
+    if (cashFlows.length > 0) {
+      // Calculate totals
+      const totalDevEx = -riskCategories.reduce(
+        (sum, cat) => sum + cat.devEx,
+        0
+      );
+      const totalCapEx = -(
+        financialParameters.baseCaseCapExPerMW * systemParams.systemSize +
+        riskCategories.reduce((sum, cat) => sum + cat.capExIncrease, 0)
+      );
+
+      // Calculate total OpEx (all negative values after year 1)
+      const totalOpEx = cashFlows.slice(2).reduce((sum, flow) => {
+        if (flow < 0) return sum + flow;
+        return sum;
+      }, 0);
+
+      // Calculate total revenue (all positive values after year 1)
+      const totalRevenue = cashFlows.slice(2).reduce((sum, flow) => {
+        if (flow > 0) return sum + flow;
+        return sum;
+      }, 0);
+
+      // Calculate total incentives (ITC and NY Sun)
+      const totalITC =
+        (financialParameters.baseCaseCapExPerMW * systemParams.systemSize +
+          riskCategories.reduce((sum, cat) => sum + cat.capExIncrease, 0)) *
+        financialParameters.itcRate;
+      const totalNYSun =
+        systemParams.systemSize *
+        1000000 *
+        financialParameters.nySunIncentivePerWatt;
+      console.log(cashFlows);
+      console.log(cashFlows.length);
+
+      console.log("Cash Flow Summary:");
+      console.log("-----------------");
+      console.log(`Total Development Costs: $${totalDevEx.toLocaleString()}`);
+      console.log(`Total Capital Costs: $${totalCapEx.toLocaleString()}`);
+      console.log(
+        `Total Operating Costs: $${Math.abs(totalOpEx).toLocaleString()}`
+      );
+      console.log(`Total Revenue: $${totalRevenue.toLocaleString()}`);
+      console.log(`Total ITC: $${totalITC.toLocaleString()}`);
+      console.log(`Total NY Sun Incentive: $${totalNYSun.toLocaleString()}`);
+      console.log(
+        `Net Cash Flow: $${cashFlows
+          .reduce((sum, flow) => sum + flow, 0)
+          .toLocaleString()}`
+      );
+    }
+  }, [cashFlows, riskCategories, systemParams, financialParameters]);
+
   return (
     <>
-      <header className="bg-gradient-to-r from-purple-700 to-indigo-700 py-8 px-4 shadow-lg rounded-lg mb-8">
-        <h1 className="text-4xl md:text-5xl font-bold text-white text-center tracking-tight">
-          <span className="inline-block transform hover:scale-105 transition-transform duration-200">
-            Predevelopment at Scale
-          </span>
-        </h1>
-        <p className="text-purple-100 text-center mt-2 text-lg">
-          A Probabilistic Financial Model for Solar Development
-        </p>
+      <header className="bg-gradient-to-r from-[#004D40] via-[#00695C] to-[#00897B] py-12 px-6 shadow-md g mb-12">
+        <div className="max-w-5xl mx-auto">
+          <h1 className="text-5xl font-bold text-white text-center tracking-tight">
+            Pre-Development at Scale
+          </h1>
+          <p className="text-[#E0F2F1] text-center mt-4 text-xl font-light tracking-wide max-w-3xl mx-auto">
+            A Probabilistic Financial Model for Solar Development
+          </p>
+        </div>
       </header>
 
       <main className="main-content">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-semibold mb-8 text-gray-800">
+          <h1 className="text-3xl font-semibold mb-8 text-[#004D40]">
             Community Solar
           </h1>
 
@@ -1126,17 +1070,17 @@ export default function Home() {
 
             {/* System Parameters */}
             <div className="card p-6">
-              <h2 className="text-xl font-semibold mb-4 text-gray-800">
+              <h2 className="text-xl font-semibold mb-4 text-[#004D40]">
                 System Parameters
               </h2>
               <div className="grid grid-cols-1 gap-4">
                 <div className="flex flex-col">
-                  <label className="block text-sm font-medium text-purple-700">
+                  <label className="block text-sm font-medium text-[#004D40]">
                     Capacity Factor (%)
                   </label>
                   <input
                     type="number"
-                    className="mt-1 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
+                    className="mt-1 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-[#00695C] focus:ring-[#00695C]"
                     value={systemParams.capacityFactor || ""}
                     onChange={(e) =>
                       setSystemParams({
@@ -1150,12 +1094,12 @@ export default function Home() {
                   />
                 </div>
                 <div className="flex flex-col">
-                  <label className="block text-sm font-medium text-purple-700">
+                  <label className="block text-sm font-medium text-[#004D40]">
                     System Size (MW)
                   </label>
                   <input
                     type="number"
-                    className="mt-1 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
+                    className="mt-1 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-[#00695C] focus:ring-[#00695C]"
                     value={systemParams.systemSize || ""}
                     onChange={(e) =>
                       setSystemParams({
@@ -1173,12 +1117,12 @@ export default function Home() {
                   />
                 </div>
                 <div className="flex flex-col">
-                  <label className="block text-sm font-medium text-purple-700">
+                  <label className="block text-sm font-medium text-[#004D40]">
                     Project Length (years)
                   </label>
                   <input
                     type="number"
-                    className="mt-1 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
+                    className="mt-1 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-[#00695C] focus:ring-[#00695C]"
                     value={systemParams.projectLength || ""}
                     onChange={(e) =>
                       setSystemParams({
@@ -1194,28 +1138,28 @@ export default function Home() {
 
             {/* Financial Parameters */}
             <div className="card p-6">
-              <h2 className="text-xl font-semibold mb-4 text-gray-800">
+              <h2 className="text-xl font-semibold mb-4 text-[#004D40]">
                 Financial Parameters
               </h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-purple-700">
+                  <label className="block text-sm font-medium text-[#004D40]">
                     Base Case CapEx ($/MW)
                   </label>
                   <input
                     type="number"
-                    value={financialParams.baseCaseCapExPerMW}
+                    value={financialParameters.baseCaseCapExPerMW}
                     onChange={(e) =>
-                      setFinancialParams({
-                        ...financialParams,
+                      setFinancialParameters({
+                        ...financialParameters,
                         baseCaseCapExPerMW: Number(e.target.value),
                       })
                     }
-                    className="mt-2 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
+                    className="mt-2 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-[#00695C] focus:ring-[#00695C]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-purple-700">
+                  <label className="block text-sm font-medium text-[#004D40]">
                     Additional CapEx
                   </label>
                   <div className="text-base text-gray-600 mt-2 p-2">
@@ -1226,29 +1170,29 @@ export default function Home() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-purple-700">
+                  <label className="block text-sm font-medium text-[#004D40]">
                     Base OpEx ($/MW/year)
                   </label>
                   <input
                     type="number"
-                    value={financialParams.baseOpExPerMW}
+                    value={financialParameters.baseOpExPerMW}
                     onChange={(e) =>
-                      setFinancialParams({
-                        ...financialParams,
+                      setFinancialParameters({
+                        ...financialParameters,
                         baseOpExPerMW: Number(e.target.value),
                       })
                     }
-                    className="mt-2 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
+                    className="mt-2 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-[#00695C] focus:ring-[#00695C]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-purple-700">
+                  <label className="block text-sm font-medium text-[#004D40]">
                     Total CapEx
                   </label>
                   <div className="text-base text-gray-600 mt-2 p-2">
                     $
                     {(
-                      financialParams.baseCaseCapExPerMW *
+                      financialParameters.baseCaseCapExPerMW *
                         systemParams.systemSize +
                       riskCategories.reduce(
                         (sum, cat) => sum + cat.capExIncrease,
@@ -1258,23 +1202,23 @@ export default function Home() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-purple-700">
+                  <label className="block text-sm font-medium text-[#004D40]">
                     ITC Rate (%)
                   </label>
                   <input
                     type="number"
-                    value={(financialParams.itcRate * 100).toFixed(2)}
+                    value={(financialParameters.itcRate * 100).toFixed(2)}
                     onChange={(e) =>
-                      setFinancialParams({
-                        ...financialParams,
+                      setFinancialParameters({
+                        ...financialParameters,
                         itcRate: Number(e.target.value) / 100,
                       })
                     }
-                    className="mt-2 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
+                    className="mt-2 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-[#00695C] focus:ring-[#00695C]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-purple-700">
+                  <label className="block text-sm font-medium text-[#004D40]">
                     Total DevEx
                   </label>
                   <div className="text-base text-gray-600 mt-2 p-2">
@@ -1291,27 +1235,19 @@ export default function Home() {
           {/* Chart Section */}
           <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-purple-700">
+              <h2 className="text-2xl font-bold text-[#004D40]">
                 Project Cash Flow
               </h2>
               <div className="flex space-x-2">
                 <button
                   onClick={() => setChartView("individual")}
-                  className={`px-4 py-2 rounded-md ${
-                    chartView === "individual"
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-200 text-gray-700"
-                  }`}
+                  className={`px-4 py-2 bg-[#004D40] text-white rounded-md hover:bg-[#00695C] transition-colors`}
                 >
                   Individual Project
                 </button>
                 <button
                   onClick={() => setChartView("portfolio")}
-                  className={`px-4 py-2 rounded-md ${
-                    chartView === "portfolio"
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-200 text-gray-700"
-                  }`}
+                  className={`px-4 py-2 bg-[#004D40] text-white rounded-md hover:bg-[#00695C] transition-colors`}
                 >
                   Portfolio View
                 </button>
@@ -1321,19 +1257,27 @@ export default function Home() {
             {/* IRR Display */}
             <div className="flex justify-center mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="text-center mx-8">
-                <div className="text-lg font-medium text-purple-700">
+                <div className="text-lg font-medium text-[#004D40]">
                   Successful Project IRR
                 </div>
-                <div className="text-3xl font-bold text-purple-700">
+                <div className="text-3xl font-bold text-[#004D40]">
                   {(successfulProjectIRR * 100).toFixed(2)}%
                 </div>
               </div>
               <div className="text-center mx-8">
-                <div className="text-lg font-medium text-purple-700">
+                <div className="text-lg font-medium text-[#004D40]">
                   Portfolio IRR
                 </div>
-                <div className="text-3xl font-bold text-purple-700">
+                <div className="text-3xl font-bold text-[#004D40]">
                   {(portfolioIRR * 100).toFixed(2)}%
+                </div>
+              </div>
+              <div className="text-center mx-8">
+                <div className="text-lg font-medium text-[#004D40]">
+                  Projects Reaching NTP
+                </div>
+                <div className="text-3xl font-bold text-[#004D40]">
+                  {(projectsReachingNTP * 100).toFixed(1)}%
                 </div>
               </div>
             </div>
@@ -1347,13 +1291,13 @@ export default function Home() {
                     legend: {
                       position: "top" as const,
                       labels: {
-                        color: "rgb(107, 33, 168)",
+                        color: "#004D40", // Paces dark green
                       },
                     },
                     title: {
                       display: true,
                       text: "Individual Project Cash Flow Breakdown",
-                      color: "rgb(107, 33, 168)",
+                      color: "#004D40", // Paces dark green
                     },
                     tooltip: {
                       callbacks: {
@@ -1370,7 +1314,7 @@ export default function Home() {
                     y: {
                       stacked: true,
                       ticks: {
-                        color: "rgb(107, 33, 168)",
+                        color: "#004D40", // Paces dark green
                         callback: function (value) {
                           return `$${value.toLocaleString()}`;
                         },
@@ -1379,7 +1323,7 @@ export default function Home() {
                     x: {
                       stacked: true,
                       ticks: {
-                        color: "rgb(107, 33, 168)",
+                        color: "#004D40", // Paces dark green
                       },
                     },
                   },
@@ -1394,13 +1338,13 @@ export default function Home() {
                     legend: {
                       position: "top" as const,
                       labels: {
-                        color: "rgb(107, 33, 168)",
+                        color: "#004D40", // Paces dark green
                       },
                     },
                     title: {
                       display: true,
                       text: "Portfolio View - Expected Cash Flow Breakdown",
-                      color: "rgb(107, 33, 168)",
+                      color: "#004D40", // Paces dark green
                     },
                     tooltip: {
                       callbacks: {
@@ -1428,7 +1372,7 @@ export default function Home() {
                     y: {
                       stacked: true,
                       ticks: {
-                        color: "rgb(107, 33, 168)",
+                        color: "#004D40", // Paces dark green
                         callback: function (value) {
                           return `$${value.toLocaleString()}`;
                         },
@@ -1437,7 +1381,7 @@ export default function Home() {
                     x: {
                       stacked: true,
                       ticks: {
-                        color: "rgb(107, 33, 168)",
+                        color: "#004D40", // Paces dark green
                       },
                     },
                   },
@@ -1450,7 +1394,7 @@ export default function Home() {
           <SplitRiskGraph
             riskCategories={riskCategories}
             systemParams={systemParams}
-            financialParams={financialParams}
+            financialParameters={financialParameters}
           />
 
           {/* Sensitivity Analysis */}
@@ -1458,19 +1402,19 @@ export default function Home() {
             <SensitivityAnalysis
               riskCategories={riskCategories}
               systemParams={systemParams}
-              financialParams={financialParams}
+              financialParameters={financialParameters}
             />
           </div>
 
           {/* Cash Flow Table */}
           <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-purple-700">
+              <h2 className="text-2xl font-bold text-[#004D40]">
                 Cash Flow Table
               </h2>
               <button
                 onClick={downloadCashFlowCSV}
-                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+                className="px-4 py-2 bg-[#004D40] text-white rounded-md hover:bg-[#00695C] transition-colors"
               >
                 Download CSV
               </button>
@@ -1478,12 +1422,12 @@ export default function Home() {
             <div className="overflow-x-auto">
               <table className="min-w-full text-base">
                 <thead>
-                  <tr className="bg-purple-50">
-                    <th className="px-3 py-3 text-purple-700">Category</th>
-                    {Array(systemParams.projectLength + 1)
+                  <tr className="bg-[#E0F2F1]">
+                    <th className="px-3 py-3 text-[#004D40]">Category</th>
+                    {Array(systemParams.projectLength + 2) // +2 for dev and construction years
                       .fill(0)
                       .map((_, i) => (
-                        <th key={i} className="px-3 py-3 text-purple-700">
+                        <th key={i} className="px-3 py-3 text-[#004D40]">
                           Year {i}
                         </th>
                       ))}
@@ -1491,10 +1435,10 @@ export default function Home() {
                 </thead>
                 <tbody>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-purple-700">
+                    <td className="px-3 py-3 font-medium text-[#004D40]">
                       DevEx
                     </td>
-                    {Array(systemParams.projectLength + 1)
+                    {Array(systemParams.projectLength + 2)
                       .fill(0)
                       .map((_, i) => (
                         <td key={i} className="px-3 py-3 text-gray-600">
@@ -1510,16 +1454,16 @@ export default function Home() {
                       ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-purple-700">
+                    <td className="px-3 py-3 font-medium text-[#004D40]">
                       CapEx
                     </td>
-                    {Array(systemParams.projectLength + 1)
+                    {Array(systemParams.projectLength + 2)
                       .fill(0)
                       .map((_, i) => (
                         <td key={i} className="px-3 py-3 text-gray-600">
                           {i === 1
                             ? `$${Math.round(
-                                financialParams.baseCaseCapExPerMW *
+                                financialParameters.baseCaseCapExPerMW *
                                   systemParams.systemSize +
                                   riskCategories.reduce(
                                     (sum, cat) => sum + cat.capExIncrease,
@@ -1531,28 +1475,31 @@ export default function Home() {
                       ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-purple-700">
+                    <td className="px-3 py-3 font-medium text-[#004D40]">
                       OpEx
                     </td>
-                    {Array(systemParams.projectLength + 1)
+                    {Array(systemParams.projectLength + 2)
                       .fill(0)
                       .map((_, i) => (
                         <td key={i} className="px-3 py-3 text-gray-600">
                           {i > 1
                             ? `$${Math.round(
-                                financialParams.baseOpExPerMW *
+                                financialParameters.baseOpExPerMW *
                                   systemParams.systemSize *
-                                  Math.pow(1.01, i - 2)
+                                  Math.pow(
+                                    1 + financialParameters.priceEscalation,
+                                    i - 2
+                                  )
                               ).toLocaleString()}`
                             : ""}
                         </td>
                       ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-purple-700">
+                    <td className="px-3 py-3 font-medium text-[#004D40]">
                       Revenue
                     </td>
-                    {Array(systemParams.projectLength + 1)
+                    {Array(systemParams.projectLength + 2)
                       .fill(0)
                       .map((_, i) => (
                         <td key={i} className="px-3 py-3 text-gray-600">
@@ -1563,15 +1510,18 @@ export default function Home() {
                                   24 *
                                   365 *
                                   (1 - 0.005 * (i - 2)) *
-                                  120 *
-                                  Math.pow(1 + 0.02, i - 2)
+                                  financialParameters.electricityRate *
+                                  Math.pow(
+                                    1 + financialParameters.priceEscalation,
+                                    i - 2
+                                  )
                               ).toLocaleString()}`
                             : ""}
                         </td>
                       ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-purple-700">
+                    <td className="px-3 py-3 font-medium text-[#004D40]">
                       Cash Flow
                     </td>
                     {cashFlows.map((flow, i) => (
@@ -1581,10 +1531,10 @@ export default function Home() {
                     ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-purple-700">
+                    <td className="px-3 py-3 font-medium text-[#004D40]">
                       % of projects
                     </td>
-                    {Array(systemParams.projectLength + 1)
+                    {Array(systemParams.projectLength + 2)
                       .fill(0)
                       .map((_, i) => {
                         let cumulativeProbability = 1;
@@ -1602,7 +1552,7 @@ export default function Home() {
                       })}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-purple-700">
+                    <td className="px-3 py-3 font-medium text-[#004D40]">
                       Expected Cash Flow
                     </td>
                     {expectedCashFlows.map((flow, i) => (
@@ -1625,11 +1575,11 @@ export default function Home() {
 function SensitivityAnalysis({
   riskCategories,
   systemParams,
-  financialParams,
+  financialParameters,
 }: {
   riskCategories: RiskCategory[];
   systemParams: SystemParameters;
-  financialParams: FinancialParameters;
+  financialParameters: FinancialParameters;
 }) {
   const [selectedCategory, setSelectedCategory] =
     useState<string>("Site Control");
@@ -1637,131 +1587,7 @@ function SensitivityAnalysis({
     [key: string]: { [key: string]: number };
   }>({});
 
-  // Add calculateIRR function back
-  const calculateIRR = (cashFlows: number[]): number => {
-    let guess = 0.1;
-    const maxIterations = 100;
-    const tolerance = 0.0001;
-
-    for (let i = 0; i < maxIterations; i++) {
-      let npv = 0;
-      let derivative = 0;
-
-      for (let j = 0; j < cashFlows.length; j++) {
-        npv += cashFlows[j] / Math.pow(1 + guess, j);
-        if (j > 0) {
-          derivative += (-j * cashFlows[j]) / Math.pow(1 + guess, j + 1);
-        }
-      }
-
-      const newGuess = guess - npv / derivative;
-      if (Math.abs(newGuess - guess) < tolerance) {
-        return newGuess;
-      }
-      guess = newGuess;
-    }
-    return guess;
-  };
-
-  const calculateSensitivityIRR = useCallback(
-    (
-      categoryName: string,
-      riskLevel: "Low" | "High",
-      approvalRisk: number
-    ): number => {
-      // Create a copy of the risk categories
-      const modifiedCategories = riskCategories.map((cat) => {
-        if (cat.name === categoryName) {
-          // Calculate DevEx and CapEx based on risk level
-          const devEx = riskLevel === "Low" ? cat.devExLow : cat.devExHigh;
-          const capExIncrease =
-            riskLevel === "Low" ? cat.capExIncreaseLow : cat.capExIncreaseHigh;
-          const goNoGoProbability = 1 - (0.5 / 14) * (approvalRisk - 1);
-
-          return {
-            ...cat,
-            riskLevel,
-            devEx,
-            capExIncrease,
-            approvalRisk,
-            goNoGoProbability,
-          };
-        }
-        return cat;
-      });
-
-      // Calculate cash flows with the modified risk category
-      const years = systemParams.projectLength;
-      const flows: number[] = [];
-      const expectedFlows: number[] = [];
-      let cumulativeProbability = 1;
-
-      // Development Phase (Year 0)
-      const totalDevEx = modifiedCategories.reduce(
-        (sum, cat) => sum + cat.devEx,
-        0
-      );
-      const totalCapExIncrease = modifiedCategories.reduce(
-        (sum, cat) => sum + cat.capExIncrease,
-        0
-      );
-      const totalCapEx =
-        financialParams.baseCaseCapExPerMW * systemParams.systemSize +
-        totalCapExIncrease;
-      const itcAmount = totalCapEx * financialParams.itcRate;
-
-      // Calculate initial probabilities
-      const initialGoNoGo = modifiedCategories.reduce(
-        (prob, cat) => prob * cat.goNoGoProbability,
-        1
-      );
-
-      // Year 0 (Development)
-      flows.push(-totalDevEx);
-      expectedFlows.push(-totalDevEx * cumulativeProbability);
-
-      cumulativeProbability *= initialGoNoGo;
-
-      // Year 1 (Construction)
-      flows.push(-totalCapEx);
-      expectedFlows.push(-totalCapEx * cumulativeProbability);
-
-      // Year 2 onwards (Operations)
-      const opEx = financialParams.baseOpExPerMW * systemParams.systemSize;
-      let degradationFactor = 1;
-      const electricityRate = 120;
-      const priceEscalation = 0.02;
-      const degradationRate = 0.005;
-      const annualGeneration =
-        systemParams.acSystemSize *
-        (systemParams.capacityFactor / 100) *
-        24 *
-        365;
-
-      for (let i = 2; i <= years; i++) {
-        degradationFactor -= degradationRate;
-        const generation = annualGeneration * degradationFactor;
-        const escalatedRate =
-          electricityRate * Math.pow(1 + priceEscalation, i - 2);
-        const revenue = generation * escalatedRate;
-        const annualOpEx = opEx * Math.pow(1.01, i - 2);
-
-        const cashFlow = revenue - annualOpEx;
-        flows.push(cashFlow);
-        expectedFlows.push(cashFlow * cumulativeProbability);
-      }
-
-      // Add ITC in year 3
-      flows[2] += itcAmount;
-      expectedFlows[2] += itcAmount * cumulativeProbability;
-
-      // Calculate IRR using the expected cash flows
-      return calculateIRR(expectedFlows);
-    },
-    [riskCategories, systemParams, financialParams]
-  );
-
-  // Generate sensitivity data when selected category changes
+  // Remove the local calculateSensitivityIRR function and update the useEffect
   useEffect(() => {
     const approvalRisks = [0, 5, 10, 15];
     const riskLevels = ["Low", "High"] as const;
@@ -1775,31 +1601,28 @@ function SensitivityAnalysis({
         newData[riskLevel][approvalRisk] = calculateSensitivityIRR(
           selectedCategory,
           riskLevel,
-          approvalRisk
+          approvalRisk,
+          riskCategories,
+          systemParams,
+          financialParameters
         );
       });
     });
 
     setSensitivityData(newData);
-  }, [
-    selectedCategory,
-    riskCategories,
-    systemParams,
-    financialParams,
-    calculateSensitivityIRR,
-  ]);
+  }, [selectedCategory, riskCategories, systemParams, financialParameters]);
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-      <h2 className="text-2xl font-bold mb-4 text-purple-700">
+      <h2 className="text-2xl font-bold mb-4 text-[#004D40]">
         Sensitivity Analysis
       </h2>
       <div className="mb-4">
-        <label className="block text-lg font-medium text-purple-700 mb-2">
+        <label className="block text-lg font-medium text-[#004D40] mb-2">
           Select Risk Category
         </label>
         <select
-          className="w-full p-3 text-lg border border-purple-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+          className="w-full p-3 text-lg border border-[#B2DFDB] rounded-md focus:outline-none focus:ring-2 focus:ring-[#00695C]"
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
         >
@@ -1814,18 +1637,18 @@ function SensitivityAnalysis({
       <div className="overflow-x-auto">
         <table className="w-1/2 mx-auto text-lg">
           <thead>
-            <tr className="bg-purple-50">
-              <th className="px-4 py-3 text-purple-700">Financing Risk</th>
-              <th className="px-4 py-3 text-purple-700">Approval Risk: 0</th>
-              <th className="px-4 py-3 text-purple-700">Approval Risk: 5</th>
-              <th className="px-4 py-3 text-purple-700">Approval Risk: 10</th>
-              <th className="px-4 py-3 text-purple-700">Approval Risk: 15</th>
+            <tr className="bg-[#E0F2F1]">
+              <th className="px-4 py-3 text-[#004D40]">Financing Risk</th>
+              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 0</th>
+              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 5</th>
+              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 10</th>
+              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 15</th>
             </tr>
           </thead>
           <tbody>
             {Object.entries(sensitivityData).map(([riskLevel, data]) => (
-              <tr key={riskLevel} className="border-b border-purple-100">
-                <td className="px-4 py-3 font-medium text-purple-700">
+              <tr key={riskLevel} className="border-b border-[#B2DFDB]">
+                <td className="px-4 py-3 font-medium text-[#004D40]">
                   {riskLevel}
                 </td>
                 {[0, 5, 10, 15].map((approvalRisk) => {
@@ -1836,7 +1659,7 @@ function SensitivityAnalysis({
                     <td
                       key={approvalRisk}
                       className={`px-4 py-3 ${
-                        isLowIrr ? "text-red-600 font-bold" : "text-gray-600"
+                        isLowIrr ? "text-red-700 font-bold" : "text-gray-600"
                       }`}
                     >
                       {(irrValue * 100).toFixed(2)}%

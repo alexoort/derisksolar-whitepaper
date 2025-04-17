@@ -27,8 +27,8 @@ def export_formulas_only(excel_file, output_csv):
                 writer.writerow([cell.coordinate, cell.value])
 
 if __name__ == "__main__":
-    excel_file_path = "Financial-model.xlsx"       # Change to your input Excel file
-    output_csv_path = "deconstructed-model.csv"    # Change to your desired output CSV file
+    excel_file_path = "financial-model.xlsx"       # Change to your input Excel file
+    output_csv_path = "deconstructed-model-adjusted.csv"    # Change to your desired output CSV file
 
     export_formulas_only(excel_file_path, output_csv_path)
     print(f"Done! Formulas (and plain values) written to: {output_csv_path}")
