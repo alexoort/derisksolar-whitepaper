@@ -16,6 +16,7 @@ import {
   Filler,
   TooltipItem,
 } from "chart.js";
+import annotationPlugin from "chartjs-plugin-annotation";
 import { RiskCategory } from "./types/risk";
 import { SystemParameters } from "./types/system";
 import { FinancialParameters } from "./types/financial";
@@ -25,6 +26,7 @@ import {
   calculateCategoryIRR,
   calculateSensitivityIRR,
 } from "./utils/cashFlowCalculations";
+import * as XLSX from "xlsx";
 
 // Register ChartJS components
 ChartJS.register(
@@ -37,7 +39,8 @@ ChartJS.register(
   Tooltip,
   Legend,
   LineController,
-  Filler
+  Filler,
+  annotationPlugin
 );
 
 function RiskCategories({
@@ -73,9 +76,9 @@ function RiskCategories({
                   ⓘ
                 </span>
                 <div className="absolute hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100] left-1/2 transform -translate-x-1/2 mt-1">
-                  Higher risk means each milestone is more likely to end up on
-                  the higher end of the budget range, for development and/or
-                  capital expenses.
+                  Higher financial risk means each milestone is more likely to
+                  end up on the higher end of the budget range, for development
+                  and/or capital expenses.
                 </div>
               </th>
               <th className="px-3 py-3 text-[#004D40] relative group">
@@ -456,6 +459,120 @@ function SplitRiskGraph({
   );
 }
 
+// Sensitivity Analysis Component
+function SensitivityAnalysis({
+  riskCategories,
+  systemParams,
+  financialParameters,
+}: {
+  riskCategories: RiskCategory[];
+  systemParams: SystemParameters;
+  financialParameters: FinancialParameters;
+}) {
+  const [selectedCategory, setSelectedCategory] =
+    useState<string>("Site Control");
+  const [sensitivityData, setSensitivityData] = useState<{
+    [key: string]: { [key: string]: number };
+  }>({});
+
+  // Remove the local calculateSensitivityIRR function and update the useEffect
+  useEffect(() => {
+    const approvalRisks = [0, 5, 10, 15];
+    const riskLevels = ["Low", "High"] as const;
+    const newData: {
+      [key: string]: { [key: string]: number };
+    } = {};
+
+    riskLevels.forEach((riskLevel) => {
+      newData[riskLevel] = {};
+      approvalRisks.forEach((approvalRisk) => {
+        newData[riskLevel][approvalRisk] = calculateSensitivityIRR(
+          selectedCategory,
+          riskLevel,
+          approvalRisk,
+          riskCategories,
+          systemParams,
+          financialParameters
+        );
+      });
+    });
+
+    setSensitivityData(newData);
+  }, [selectedCategory, riskCategories, systemParams, financialParameters]);
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+      <h2 className="text-2xl font-bold mb-4 text-[#004D40]">
+        Sensitivity Analysis
+      </h2>
+      <div className="mb-4">
+        <label className="block text-lg font-medium text-[#004D40] mb-2">
+          Select Risk Category
+        </label>
+        <select
+          className="w-full p-3 text-lg border border-[#B2DFDB] rounded-md focus:outline-none focus:ring-2 focus:ring-[#00695C]"
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+        >
+          {riskCategories.map((category) => (
+            <option key={category.name} value={category.name}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-1/2 mx-auto text-lg">
+          <thead>
+            <tr className="bg-[#E0F2F1]">
+              <th className="px-4 py-3 text-[#004D40]">Financing Risk</th>
+              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 0</th>
+              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 5</th>
+              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 10</th>
+              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 15</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(sensitivityData).map(([riskLevel, data]) => (
+              <tr key={riskLevel} className="border-b border-[#B2DFDB]">
+                <td className="px-4 py-3 font-medium text-[#004D40]">
+                  {riskLevel}
+                </td>
+                {[0, 5, 10, 15].map((approvalRisk) => {
+                  const irrValue = data[approvalRisk];
+                  const isLowIrr = irrValue < 0.1; // 10% threshold
+                  const isHighIrr = irrValue >= 0.1; // 10% threshold
+
+                  return (
+                    <td
+                      key={approvalRisk}
+                      className={`px-4 py-3 ${
+                        isLowIrr
+                          ? "text-red-700 font-bold"
+                          : isHighIrr
+                          ? "text-[#006D4B] font-bold"
+                          : "text-gray-600"
+                      }`}
+                    >
+                      {(irrValue * 100).toFixed(2)}%
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-4 text-sm text-gray-600">
+        This table shows how the Portfolio IRR changes based on different
+        combinations of financing risk and approval risk for the selected
+        category. All other parameters remain unchanged.
+      </p>
+    </div>
+  );
+}
+
 export default function Home() {
   // Risk Categories
   const [riskCategories, setRiskCategories] = useState<RiskCategory[]>([
@@ -528,7 +645,7 @@ export default function Home() {
 
   // System Parameters
   const [systemParams, setSystemParams] = useState<SystemParameters>({
-    capacityFactor: 20,
+    capacityFactor: 14,
     systemSize: 3,
     acSystemSize: 2.4,
     projectLength: 25,
@@ -538,11 +655,11 @@ export default function Home() {
   // Financial Parameters
   const [financialParameters, setFinancialParameters] =
     useState<FinancialParameters>({
-      baseCaseCapExPerMW: 1850000, // $1.85/Watt * 1000000
-      baseOpExPerMW: 22500, // Updated OpEx based on new model
+      baseCaseCapExPerMW: 1700000, // $1.7/Watt * 1000000
+      baseOpExPerMW: 22500,
       itcRate: 0.3,
       nySunIncentivePerWatt: 0.17,
-      electricityRate: 100,
+      electricityRate: 140,
       priceEscalation: 0.02,
     });
 
@@ -550,9 +667,7 @@ export default function Home() {
   const [expectedCashFlows, setExpectedCashFlows] = useState<number[]>([]);
 
   // Add this state for chart view toggle
-  const [chartView, setChartView] = useState<"individual" | "portfolio">(
-    "individual"
-  );
+  const [view, setView] = useState<"individual" | "portfolio">("individual");
 
   // Calculate IRR for successful projects and portfolio
   const [successfulProjectIRR, setSuccessfulProjectIRR] = useState<number>(0);
@@ -657,7 +772,7 @@ export default function Home() {
               const degradationFactor =
                 i === 2 ? 1 : 1 - systemParams.degradationRate * (i - 2);
               const generation =
-                systemParams.acSystemSize *
+                systemParams.systemSize *
                 (systemParams.capacityFactor / 100) *
                 24 *
                 365 *
@@ -708,7 +823,7 @@ export default function Home() {
       ],
     },
     portfolio: {
-      labels: Array(systemParams.projectLength + 2) // +2 for dev and construction years
+      labels: Array(systemParams.projectLength + 2)
         .fill(0)
         .map((_, i) => `Year ${i}`),
       datasets: [
@@ -729,9 +844,9 @@ export default function Home() {
                     cumulativeProbability
                 : 0;
             }),
-          backgroundColor: "rgba(0, 77, 64, 0.2)", // Paces dark green with opacity
-          borderColor: "#004D40", // Paces dark green
-          borderWidth: 2,
+          backgroundColor: "rgba(220, 80, 100, 0.7)", // Darker red with green undertone
+          borderColor: "rgb(200, 60, 80)",
+          borderWidth: 1,
         },
         {
           label: "CapEx",
@@ -756,9 +871,9 @@ export default function Home() {
                   ) * cumulativeProbability
                 : 0;
             }),
-          backgroundColor: "rgba(0, 105, 92, 0.2)", // Slightly lighter green with opacity
-          borderColor: "#00695C", // Slightly lighter green
-          borderWidth: 2,
+          backgroundColor: "rgba(45, 145, 190, 0.7)", // Deeper blue with green undertone
+          borderColor: "rgb(35, 125, 170)",
+          borderWidth: 1,
         },
         {
           label: "OpEx",
@@ -780,9 +895,9 @@ export default function Home() {
                   ) * cumulativeProbability
                 : 0;
             }),
-          backgroundColor: "rgba(0, 137, 123, 0.2)", // Even lighter green with opacity
-          borderColor: "#00897B", // Even lighter green
-          borderWidth: 2,
+          backgroundColor: "rgba(65, 170, 160, 0.7)", // Teal with more green
+          borderColor: "rgb(55, 150, 140)",
+          borderWidth: 1,
         },
         {
           label: "Revenue",
@@ -802,7 +917,7 @@ export default function Home() {
               const degradationFactor =
                 i === 2 ? 1 : 1 - systemParams.degradationRate * (i - 2);
               const generation =
-                systemParams.acSystemSize *
+                systemParams.systemSize *
                 (systemParams.capacityFactor / 100) *
                 24 *
                 365 *
@@ -813,9 +928,9 @@ export default function Home() {
 
               return generation * escalatedRate * cumulativeProbability;
             }),
-          backgroundColor: "rgba(178, 223, 219, 0.2)", // Lightest green with opacity
-          borderColor: "#B2DFDB", // Lightest green
-          borderWidth: 2,
+          backgroundColor: "rgba(130, 90, 190, 0.7)", // Deeper purple with green undertone
+          borderColor: "rgb(110, 70, 170)",
+          borderWidth: 1,
         },
         {
           label: "ITC",
@@ -840,9 +955,9 @@ export default function Home() {
                     cumulativeProbability
                 : 0;
             }),
-          backgroundColor: "rgba(0, 77, 64, 0.2)", // Paces dark green with opacity
-          borderColor: "#004D40", // Paces dark green
-          borderWidth: 2,
+          backgroundColor: "rgba(225, 140, 50, 0.7)", // Deeper orange with green undertone
+          borderColor: "rgb(205, 120, 30)",
+          borderWidth: 1,
         },
         {
           label: "NY Sun",
@@ -863,117 +978,156 @@ export default function Home() {
                     cumulativeProbability
                 : 0;
             }),
-          backgroundColor: "rgba(0, 77, 64, 0.2)", // Paces dark green with opacity
-          borderColor: "#004D40", // Paces dark green
-          borderWidth: 2,
+          backgroundColor: "rgba(80, 160, 120, 0.7)", // Professional green
+          borderColor: "rgb(60, 140, 100)",
+          borderWidth: 1,
         },
       ],
     },
   };
 
-  // Add a function to download cash flow table as CSV
-  const downloadCashFlowCSV = () => {
-    let csvContent = "Category,";
-    for (let i = 0; i <= systemParams.projectLength + 1; i++) {
-      csvContent += `Year ${i},`;
-    }
-    csvContent = csvContent.slice(0, -1) + "\n";
-
-    // Add DevEx row
-    csvContent += "DevEx,";
-    for (let i = 0; i <= systemParams.projectLength + 1; i++) {
-      csvContent +=
-        i === 0
-          ? `$${Math.round(
-              riskCategories.reduce((sum, cat) => sum + cat.devEx, 0)
-            ).toLocaleString()},`
-          : ",";
-    }
-    csvContent = csvContent.slice(0, -1) + "\n";
-
-    // Add CapEx row
-    csvContent += "CapEx,";
-    for (let i = 0; i <= systemParams.projectLength + 1; i++) {
-      csvContent +=
-        i === 1
-          ? `$${Math.round(
-              financialParameters.baseCaseCapExPerMW * systemParams.systemSize +
-                riskCategories.reduce((sum, cat) => sum + cat.capExIncrease, 0)
-            ).toLocaleString()},`
-          : ",";
-    }
-    csvContent = csvContent.slice(0, -1) + "\n";
-
-    // Add OpEx row
-    csvContent += "OpEx,";
-    for (let i = 0; i <= systemParams.projectLength + 1; i++) {
-      csvContent +=
-        i > 1
-          ? `$${Math.round(
-              financialParameters.baseOpExPerMW *
-                systemParams.systemSize *
-                Math.pow(1 + financialParameters.priceEscalation, i - 2)
-            ).toLocaleString()},`
-          : ",";
-    }
-    csvContent = csvContent.slice(0, -1) + "\n";
-
-    // Add Revenue row
-    csvContent += "Revenue,";
-    for (let i = 0; i <= systemParams.projectLength + 1; i++) {
-      csvContent +=
-        i > 1
-          ? `$${Math.round(
-              systemParams.acSystemSize *
+  // Replace the downloadCashFlowCSV function with this new Excel download function
+  const downloadExcel = () => {
+    // Create the worksheet data
+    const wsData = [
+      [
+        "Category",
+        ...Array(systemParams.projectLength + 2)
+          .fill(0)
+          .map((_, i) => `Year ${i}`),
+      ],
+      [
+        "DevEx",
+        ...Array(systemParams.projectLength + 2)
+          .fill(0)
+          .map((_, i) =>
+            i === 0
+              ? -riskCategories.reduce((sum, cat) => sum + cat.devEx, 0)
+              : 0
+          ),
+      ],
+      [
+        "CapEx",
+        ...Array(systemParams.projectLength + 2)
+          .fill(0)
+          .map((_, i) =>
+            i === 1
+              ? -(
+                  financialParameters.baseCaseCapExPerMW *
+                    systemParams.systemSize +
+                  riskCategories.reduce(
+                    (sum, cat) => sum + cat.capExIncrease,
+                    0
+                  )
+                )
+              : 0
+          ),
+      ],
+      [
+        "Incentives",
+        ...Array(systemParams.projectLength + 2)
+          .fill(0)
+          .map((_, i) =>
+            i === 1
+              ? systemParams.systemSize *
+                1000000 *
+                financialParameters.nySunIncentivePerWatt
+              : i === 2
+              ? (financialParameters.baseCaseCapExPerMW *
+                  systemParams.systemSize +
+                  riskCategories.reduce(
+                    (sum, cat) => sum + cat.capExIncrease,
+                    0
+                  )) *
+                financialParameters.itcRate
+              : 0
+          ),
+      ],
+      [
+        "Revenue",
+        ...Array(systemParams.projectLength + 2)
+          .fill(0)
+          .map((_, i) =>
+            i > 1
+              ? systemParams.systemSize *
                 (systemParams.capacityFactor / 100) *
                 24 *
                 365 *
                 (1 - 0.005 * (i - 2)) *
                 financialParameters.electricityRate *
                 Math.pow(1 + financialParameters.priceEscalation, i - 2)
-            ).toLocaleString()},`
-          : ",";
-    }
-    csvContent = csvContent.slice(0, -1) + "\n";
+              : 0
+          ),
+      ],
+      [
+        "OpEx",
+        ...Array(systemParams.projectLength + 2)
+          .fill(0)
+          .map((_, i) =>
+            i > 1
+              ? -(
+                  financialParameters.baseOpExPerMW *
+                  systemParams.systemSize *
+                  Math.pow(1 + financialParameters.priceEscalation, i - 2)
+                )
+              : 0
+          ),
+      ],
+      ["Cash Flow", ...cashFlows],
+      [
+        "% of projects",
+        ...Array(systemParams.projectLength + 2)
+          .fill(0)
+          .map((_, i) => {
+            let cumulativeProbability = 1;
+            if (i > 0) {
+              cumulativeProbability = riskCategories.reduce(
+                (prob, cat) => prob * cat.goNoGoProbability,
+                1
+              );
+            }
+            return cumulativeProbability;
+          }),
+      ],
+      ["Expected Cash Flow", ...expectedCashFlows],
+    ];
 
-    // Add Cash Flow row
-    csvContent += "Cash Flow,";
-    for (let i = 0; i < cashFlows.length; i++) {
-      csvContent += `$${Math.round(cashFlows[i]).toLocaleString()},`;
-    }
-    csvContent = csvContent.slice(0, -1) + "\n";
+    // Create a new workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-    // Add Expected Cash Flow row
-    csvContent += "Expected Cash Flow,";
-    for (let i = 0; i < expectedCashFlows.length; i++) {
-      csvContent += `$${Math.round(expectedCashFlows[i]).toLocaleString()},`;
-    }
-    csvContent = csvContent.slice(0, -1) + "\n";
-
-    // Add % of projects row
-    csvContent += "% of projects,";
+    // Set column widths
+    const colWidths = [{ wch: 20 }]; // First column width
     for (let i = 0; i <= systemParams.projectLength + 1; i++) {
-      let cumulativeProbability = 1;
-      if (i > 0) {
-        cumulativeProbability = riskCategories.reduce(
-          (prob, cat) => prob * cat.goNoGoProbability,
-          1
-        );
-      }
-      csvContent += Math.round(cumulativeProbability * 100) + "%,";
+      colWidths.push({ wch: 15 }); // Other columns width
     }
-    csvContent = csvContent.slice(0, -1) + "\n";
+    ws["!cols"] = colWidths;
 
-    // Create a blob and download link
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "cash_flow_table.csv");
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Style the cells
+    for (let i = 0; i < wsData.length; i++) {
+      for (let j = 0; j < wsData[i].length; j++) {
+        const cellRef = XLSX.utils.encode_cell({ r: i, c: j });
+        if (!ws[cellRef]) ws[cellRef] = { v: null };
+
+        // Add cell styles
+        ws[cellRef].s = {
+          font: { bold: i === 0 || j === 0 },
+          alignment: { horizontal: j === 0 ? "left" : "right" },
+          numFmt:
+            j === 0
+              ? "@" // Text format for first column
+              : i === 7
+              ? "0%" // Percentage format for % of projects row
+              : "#,##0", // Number format with thousands separator
+        };
+      }
+    }
+
+    // Add the worksheet to the workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Cash Flow Analysis");
+
+    // Generate the Excel file and trigger download
+    XLSX.writeFile(wb, "cash_flow_analysis.xlsx");
   };
 
   // Add logging for Go/No-Go probabilities
@@ -1049,7 +1203,7 @@ export default function Home() {
             Pre-Development at Scale
           </h1>
           <p className="text-[#E0F2F1] text-center mt-4 text-xl font-light tracking-wide max-w-3xl mx-auto">
-            A Probabilistic Financial Model for Solar Development
+            A Probabilistic Financial Model for Community Solar Development
           </p>
         </div>
       </header>
@@ -1057,7 +1211,7 @@ export default function Home() {
       <main className="main-content">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-3xl font-semibold mb-8 text-[#004D40]">
-            Community Solar
+            Model Inputs
           </h1>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -1147,12 +1301,14 @@ export default function Home() {
                     Base Case CapEx ($/MW)
                   </label>
                   <input
-                    type="number"
-                    value={financialParameters.baseCaseCapExPerMW}
+                    type="text"
+                    value={financialParameters.baseCaseCapExPerMW.toLocaleString()}
                     onChange={(e) =>
                       setFinancialParameters({
                         ...financialParameters,
-                        baseCaseCapExPerMW: Number(e.target.value),
+                        baseCaseCapExPerMW: Number(
+                          e.target.value.replace(/,/g, "")
+                        ),
                       })
                     }
                     className="mt-2 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-[#00695C] focus:ring-[#00695C]"
@@ -1174,12 +1330,12 @@ export default function Home() {
                     Base OpEx ($/MW/year)
                   </label>
                   <input
-                    type="number"
-                    value={financialParameters.baseOpExPerMW}
+                    type="text"
+                    value={financialParameters.baseOpExPerMW.toLocaleString()}
                     onChange={(e) =>
                       setFinancialParameters({
                         ...financialParameters,
-                        baseOpExPerMW: Number(e.target.value),
+                        baseOpExPerMW: Number(e.target.value.replace(/,/g, "")),
                       })
                     }
                     className="mt-2 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-[#00695C] focus:ring-[#00695C]"
@@ -1207,7 +1363,7 @@ export default function Home() {
                   </label>
                   <input
                     type="number"
-                    value={(financialParameters.itcRate * 100).toFixed(2)}
+                    value={Math.round(financialParameters.itcRate * 100)}
                     onChange={(e) =>
                       setFinancialParameters({
                         ...financialParameters,
@@ -1229,6 +1385,36 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+
+              <h3 className="text-lg font-medium mt-6 mb-4 text-[#004D40] border-t border-[#B2DFDB] pt-4">
+                Financial Assumptions
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#004D40]">
+                    Electricity Rate ($/MWh)
+                  </label>
+                  <div className="text-base text-gray-600 mt-2 p-2">
+                    ${financialParameters.electricityRate.toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#004D40]">
+                    Escalation Rate (%)
+                  </label>
+                  <div className="text-base text-gray-600 mt-2 p-2">
+                    {Math.round(financialParameters.priceEscalation * 100)}%
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#004D40]">
+                    NY-Sun Incentive ($/W)
+                  </label>
+                  <div className="text-base text-gray-600 mt-2 p-2">
+                    ${financialParameters.nySunIncentivePerWatt.toFixed(2)}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1238,16 +1424,24 @@ export default function Home() {
               <h2 className="text-2xl font-bold text-[#004D40]">
                 Project Cash Flow
               </h2>
-              <div className="flex space-x-2">
+              <div className="flex justify-end mb-4 space-x-4">
                 <button
-                  onClick={() => setChartView("individual")}
-                  className={`px-4 py-2 bg-[#004D40] text-white rounded-md hover:bg-[#00695C] transition-colors`}
+                  onClick={() => setView("individual")}
+                  className={`px-4 py-2 rounded-md ${
+                    view === "individual"
+                      ? "bg-[#004D40] text-white" // darker green when active
+                      : "bg-[#B2DFDB] text-[#004D40]" // lighter green when inactive
+                  }`}
                 >
                   Individual Project
                 </button>
                 <button
-                  onClick={() => setChartView("portfolio")}
-                  className={`px-4 py-2 bg-[#004D40] text-white rounded-md hover:bg-[#00695C] transition-colors`}
+                  onClick={() => setView("portfolio")}
+                  className={`px-4 py-2 rounded-md ${
+                    view === "portfolio"
+                      ? "bg-[#004D40] text-white" // darker green when active
+                      : "bg-[#B2DFDB] text-[#004D40]" // lighter green when inactive
+                  }`}
                 >
                   Portfolio View
                 </button>
@@ -1256,33 +1450,82 @@ export default function Home() {
 
             {/* IRR Display */}
             <div className="flex justify-center mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="text-center mx-8">
-                <div className="text-lg font-medium text-[#004D40]">
-                  Successful Project IRR
+              <div className="text-center mx-8 relative group">
+                <div className="text-lg font-medium text-[#004D40] flex items-center justify-center">
+                  IRR at NTP
+                  <div className="relative inline-block">
+                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                      ⓘ
+                    </span>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
+                      The Internal Rate of Return (IRR) for a successful project
+                      that reaches commercial operation, considering all
+                      development costs, capital expenses, and operating cash
+                      flows.
+                    </div>
+                  </div>
                 </div>
-                <div className="text-3xl font-bold text-[#004D40]">
+                <div
+                  className={`text-3xl font-bold ${
+                    successfulProjectIRR >= 0.1
+                      ? "text-[#004D40]"
+                      : "text-red-700"
+                  }`}
+                >
                   {(successfulProjectIRR * 100).toFixed(2)}%
                 </div>
               </div>
-              <div className="text-center mx-8">
-                <div className="text-lg font-medium text-[#004D40]">
+              <div className="text-center mx-8 relative group">
+                <div className="text-lg font-medium text-[#004D40] flex items-center justify-center">
                   Portfolio IRR
+                  <div className="relative inline-block">
+                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                      ⓘ
+                    </span>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
+                      The expected IRR across the entire portfolio, accounting
+                      for both successful and failed projects. This factors in
+                      the probability of projects failing at each development
+                      milestone.
+                    </div>
+                  </div>
                 </div>
-                <div className="text-3xl font-bold text-[#004D40]">
+                <div
+                  className={`text-3xl font-bold ${
+                    portfolioIRR >= 0.1 ? "text-[#004D40]" : "text-red-700"
+                  }`}
+                >
                   {(portfolioIRR * 100).toFixed(2)}%
                 </div>
               </div>
-              <div className="text-center mx-8">
-                <div className="text-lg font-medium text-[#004D40]">
-                  Projects Reaching NTP
+              <div className="text-center mx-8 relative group">
+                <div className="text-lg font-medium text-[#004D40] flex items-center justify-center">
+                  % Pipeline Reaching NTP
+                  <div className="relative inline-block">
+                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                      ⓘ
+                    </span>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
+                      The percentage of projects in the development pipeline
+                      that successfully reach Notice to Proceed (NTP), based on
+                      the cumulative probability of passing all development
+                      milestones.
+                    </div>
+                  </div>
                 </div>
-                <div className="text-3xl font-bold text-[#004D40]">
+                <div
+                  className={`text-3xl font-bold ${
+                    projectsReachingNTP < 0.25
+                      ? "text-red-700"
+                      : "text-[#004D40]"
+                  }`}
+                >
                   {(projectsReachingNTP * 100).toFixed(1)}%
                 </div>
               </div>
             </div>
 
-            {chartView === "individual" ? (
+            {view === "individual" ? (
               <Bar
                 data={chartData.individual}
                 options={{
@@ -1315,7 +1558,7 @@ export default function Home() {
                       stacked: true,
                       ticks: {
                         color: "#004D40", // Paces dark green
-                        callback: function (value) {
+                        callback: function (value: number | string) {
                           return `$${value.toLocaleString()}`;
                         },
                       },
@@ -1324,6 +1567,15 @@ export default function Home() {
                       stacked: true,
                       ticks: {
                         color: "#004D40", // Paces dark green
+                        callback: function (value: number | string) {
+                          if (value === 1) {
+                            return ["Year 1", "(NTP)"];
+                          }
+                          if (value === 2) {
+                            return ["Year 2", "(COD)"];
+                          }
+                          return `Year ${value}`;
+                        },
                       },
                     },
                   },
@@ -1351,7 +1603,6 @@ export default function Home() {
                         label: function (context) {
                           const value = context.raw as number;
                           const year = context.dataIndex;
-                          // Calculate cumulative probability for portfolio view
                           let cumulativeProbability = 1;
                           if (year > 0) {
                             cumulativeProbability = riskCategories.reduce(
@@ -1361,7 +1612,7 @@ export default function Home() {
                           }
                           return `${
                             context.dataset.label
-                          }: $${value.toLocaleString()} (% of projects: ${(
+                          }: $${value.toLocaleString()} (% of pipeline: ${(
                             cumulativeProbability * 100
                           ).toFixed(2)}%)`;
                         },
@@ -1373,7 +1624,7 @@ export default function Home() {
                       stacked: true,
                       ticks: {
                         color: "#004D40", // Paces dark green
-                        callback: function (value) {
+                        callback: function (value: number | string) {
                           return `$${value.toLocaleString()}`;
                         },
                       },
@@ -1382,6 +1633,15 @@ export default function Home() {
                       stacked: true,
                       ticks: {
                         color: "#004D40", // Paces dark green
+                        callback: function (value: number | string) {
+                          if (value === 1) {
+                            return ["Year 1", "(NTP)"];
+                          }
+                          if (value === 2) {
+                            return ["Year 2", "(COD)"];
+                          }
+                          return `Year ${value}`;
+                        },
                       },
                     },
                   },
@@ -1413,10 +1673,10 @@ export default function Home() {
                 Cash Flow Table
               </h2>
               <button
-                onClick={downloadCashFlowCSV}
+                onClick={downloadExcel}
                 className="px-4 py-2 bg-[#004D40] text-white rounded-md hover:bg-[#00695C] transition-colors"
               >
-                Download CSV
+                Download Excel
               </button>
             </div>
             <div className="overflow-x-auto">
@@ -1476,6 +1736,59 @@ export default function Home() {
                   </tr>
                   <tr>
                     <td className="px-3 py-3 font-medium text-[#004D40]">
+                      Incentives
+                    </td>
+                    {Array(systemParams.projectLength + 2)
+                      .fill(0)
+                      .map((_, i) => (
+                        <td key={i} className="px-3 py-3 text-gray-600">
+                          {i === 1
+                            ? `$${Math.round(
+                                systemParams.systemSize *
+                                  1000000 *
+                                  financialParameters.nySunIncentivePerWatt
+                              ).toLocaleString()}`
+                            : i === 2
+                            ? `$${Math.round(
+                                (financialParameters.baseCaseCapExPerMW *
+                                  systemParams.systemSize +
+                                  riskCategories.reduce(
+                                    (sum, cat) => sum + cat.capExIncrease,
+                                    0
+                                  )) *
+                                  financialParameters.itcRate
+                              ).toLocaleString()}`
+                            : ""}
+                        </td>
+                      ))}
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-3 font-medium text-[#004D40]">
+                      Revenue
+                    </td>
+                    {Array(systemParams.projectLength + 2)
+                      .fill(0)
+                      .map((_, i) => (
+                        <td key={i} className="px-3 py-3 text-gray-600">
+                          {i > 1
+                            ? `$${Math.round(
+                                systemParams.systemSize *
+                                  (systemParams.capacityFactor / 100) *
+                                  24 *
+                                  365 *
+                                  (1 - 0.005 * (i - 2)) *
+                                  financialParameters.electricityRate *
+                                  Math.pow(
+                                    1 + financialParameters.priceEscalation,
+                                    i - 2
+                                  )
+                              ).toLocaleString()}`
+                            : ""}
+                        </td>
+                      ))}
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-3 font-medium text-[#004D40]">
                       OpEx
                     </td>
                     {Array(systemParams.projectLength + 2)
@@ -1497,31 +1810,6 @@ export default function Home() {
                   </tr>
                   <tr>
                     <td className="px-3 py-3 font-medium text-[#004D40]">
-                      Revenue
-                    </td>
-                    {Array(systemParams.projectLength + 2)
-                      .fill(0)
-                      .map((_, i) => (
-                        <td key={i} className="px-3 py-3 text-gray-600">
-                          {i > 1
-                            ? `$${Math.round(
-                                systemParams.acSystemSize *
-                                  (systemParams.capacityFactor / 100) *
-                                  24 *
-                                  365 *
-                                  (1 - 0.005 * (i - 2)) *
-                                  financialParameters.electricityRate *
-                                  Math.pow(
-                                    1 + financialParameters.priceEscalation,
-                                    i - 2
-                                  )
-                              ).toLocaleString()}`
-                            : ""}
-                        </td>
-                      ))}
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-3 font-medium text-[#004D40]">
                       Cash Flow
                     </td>
                     {cashFlows.map((flow, i) => (
@@ -1532,7 +1820,7 @@ export default function Home() {
                   </tr>
                   <tr>
                     <td className="px-3 py-3 font-medium text-[#004D40]">
-                      % of projects
+                      % of Pipeline
                     </td>
                     {Array(systemParams.projectLength + 2)
                       .fill(0)
@@ -1568,114 +1856,5 @@ export default function Home() {
         </div>
       </main>
     </>
-  );
-}
-
-// Sensitivity Analysis Component
-function SensitivityAnalysis({
-  riskCategories,
-  systemParams,
-  financialParameters,
-}: {
-  riskCategories: RiskCategory[];
-  systemParams: SystemParameters;
-  financialParameters: FinancialParameters;
-}) {
-  const [selectedCategory, setSelectedCategory] =
-    useState<string>("Site Control");
-  const [sensitivityData, setSensitivityData] = useState<{
-    [key: string]: { [key: string]: number };
-  }>({});
-
-  // Remove the local calculateSensitivityIRR function and update the useEffect
-  useEffect(() => {
-    const approvalRisks = [0, 5, 10, 15];
-    const riskLevels = ["Low", "High"] as const;
-    const newData: {
-      [key: string]: { [key: string]: number };
-    } = {};
-
-    riskLevels.forEach((riskLevel) => {
-      newData[riskLevel] = {};
-      approvalRisks.forEach((approvalRisk) => {
-        newData[riskLevel][approvalRisk] = calculateSensitivityIRR(
-          selectedCategory,
-          riskLevel,
-          approvalRisk,
-          riskCategories,
-          systemParams,
-          financialParameters
-        );
-      });
-    });
-
-    setSensitivityData(newData);
-  }, [selectedCategory, riskCategories, systemParams, financialParameters]);
-
-  return (
-    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-      <h2 className="text-2xl font-bold mb-4 text-[#004D40]">
-        Sensitivity Analysis
-      </h2>
-      <div className="mb-4">
-        <label className="block text-lg font-medium text-[#004D40] mb-2">
-          Select Risk Category
-        </label>
-        <select
-          className="w-full p-3 text-lg border border-[#B2DFDB] rounded-md focus:outline-none focus:ring-2 focus:ring-[#00695C]"
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-        >
-          {riskCategories.map((category) => (
-            <option key={category.name} value={category.name}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-1/2 mx-auto text-lg">
-          <thead>
-            <tr className="bg-[#E0F2F1]">
-              <th className="px-4 py-3 text-[#004D40]">Financing Risk</th>
-              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 0</th>
-              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 5</th>
-              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 10</th>
-              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 15</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(sensitivityData).map(([riskLevel, data]) => (
-              <tr key={riskLevel} className="border-b border-[#B2DFDB]">
-                <td className="px-4 py-3 font-medium text-[#004D40]">
-                  {riskLevel}
-                </td>
-                {[0, 5, 10, 15].map((approvalRisk) => {
-                  const irrValue = data[approvalRisk];
-                  const isLowIrr = irrValue < 0.1; // 10% threshold
-
-                  return (
-                    <td
-                      key={approvalRisk}
-                      className={`px-4 py-3 ${
-                        isLowIrr ? "text-red-700 font-bold" : "text-gray-600"
-                      }`}
-                    >
-                      {(irrValue * 100).toFixed(2)}%
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-4 text-sm text-gray-600">
-        This table shows how the Portfolio IRR changes based on different
-        combinations of financing risk and approval risk for the selected
-        category. All other parameters remain unchanged.
-      </p>
-    </div>
   );
 }

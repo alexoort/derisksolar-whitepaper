@@ -73,7 +73,7 @@ export function calculateCashFlows(
   const opEx = financialParameters.baseOpExPerMW * systemParams.systemSize;
   let degradationFactor = 1;
   const annualGeneration =
-    systemParams.acSystemSize *
+    systemParams.systemSize *
     (systemParams.capacityFactor / 100) *
     24 *
     365;
