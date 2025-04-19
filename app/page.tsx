@@ -1210,6 +1210,13 @@ export default function Home() {
 
       <main className="main-content">
         <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8">
+            <p className="text-sm text-gray-600 italic">
+              This financial model is designed to provide directional insights
+              rather than a precise financial forecast.
+            </p>
+          </div>
+
           <h1 className="text-3xl font-semibold mb-8 text-[#004D40]">
             Model Inputs
           </h1>
@@ -1855,6 +1862,103 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Disclaimer Section */}
+      <footer className="bg-white py-16 px-8 mt-16 border-t border-[#B2DFDB]">
+        <div className="max-w-4xl mx-auto space-y-12">
+          <div className="flex items-center mb-6">
+            <div className="h-8 w-1 bg-[#004D40] mr-4"></div>
+            <h2 className="text-2xl font-semibold text-[#004D40]">
+              Disclaimer
+            </h2>
+          </div>
+
+          {/* Directional Statement */}
+          <div className="text-center">
+            <p className="text-2xl font-bold text-[#004D40] leading-relaxed">
+              The financial model is designed to provide directional insights
+              rather than a precise financial forecast.
+            </p>
+          </div>
+
+          {/* Model Assumptions */}
+          <div className="bg-[#F5F5F5] p-8 rounded-lg">
+            <h3 className="text-xl font-semibold text-[#004D40] mb-6">
+              Model Assumptions
+            </h3>
+            <ul className="space-y-4 text-gray-700">
+              <li className="flex items-start">
+                <span className="text-[#004D40] mr-3 text-xl">•</span>
+                <span className="text-lg">
+                  No reliance on debt or external financing.
+                </span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-[#004D40] mr-3 text-xl">•</span>
+                <span className="text-lg">
+                  Specific financial parameters: a $140 electricity rate
+                  (derived from previous community solar models), a 2% standard
+                  escalation rate, and a base NY Sun incentive for NYSEG.
+                </span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-[#004D40] mr-3 text-xl">•</span>
+                <span className="text-lg">
+                  All the projects in the portfolio are assumed to be of the
+                  same size and have the same financial parameters.
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Model Limitations */}
+          <div className="bg-[#F5F5F5] p-8 rounded-lg">
+            <h3 className="text-xl font-semibold text-[#004D40] mb-6">
+              Model Limitations
+            </h3>
+            <div className="space-y-8">
+              <div>
+                <h4 className="text-lg font-medium text-[#004D40] mb-3">
+                  Risk Interdependencies
+                </h4>
+                <p className="text-gray-700 text-lg leading-relaxed">
+                  The model assumes that risks in the development process are
+                  independent, whereas, in reality, these risks can be highly
+                  interrelated and may compound one another.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-lg font-medium text-[#004D40] mb-3">
+                  Approval Risk Conversion
+                </h4>
+                <p className="text-gray-700 text-lg leading-relaxed">
+                  The conversion formula used to translate approval risk into a
+                  probability is not based on empirical data, and is instead
+                  based on expert feedback. That being said, we encourage
+                  developers to adjust the model based on their historical
+                  experience.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-lg font-medium text-[#004D40] mb-3">
+                  Simplified Cost Timing
+                </h4>
+                <p className="text-gray-700 text-lg leading-relaxed">
+                  By assuming that all development costs occur simultaneously,
+                  the model does not account for the differences in cost impact
+                  across stages. This means it fails to distinguish between
+                  early-stage failures (e.g., issues with site control, which
+                  typically incur lower sunk costs) and later-stage failures
+                  (e.g., after receiving CESIR results, which tend to be more
+                  costly).
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
     </>
   );
 }
