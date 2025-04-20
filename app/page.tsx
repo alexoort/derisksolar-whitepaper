@@ -1210,13 +1210,6 @@ export default function Home() {
 
       <main className="main-content">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8">
-            <p className="text-sm text-gray-600 italic">
-              This financial model is designed to provide directional insights
-              rather than a precise financial forecast.
-            </p>
-          </div>
-
           <h1 className="text-3xl font-semibold mb-8 text-[#004D40]">
             Model Inputs
           </h1>
