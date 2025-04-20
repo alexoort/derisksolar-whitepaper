@@ -4,4 +4,5 @@ export interface SystemParameters {
   capacityFactor: number;
   projectLength: number;
   degradationRate: number;
+  pipelineSize: number;
 } 

@@ -650,6 +650,7 @@ export default function Home() {
     acSystemSize: 2.4,
     projectLength: 25,
     degradationRate: 0.005,
+    pipelineSize: 10,
   });
 
   // Financial Parameters
@@ -675,6 +676,7 @@ export default function Home() {
 
   // Add this with the other state declarations at the top of the component
   const [projectsReachingNTP, setProjectsReachingNTP] = useState<number>(0);
+  const [sunkDevCost, setSunkDevCost] = useState<number>(0);
 
   // Update IRR calculations when cash flows change
   useEffect(() => {
@@ -683,8 +685,20 @@ export default function Home() {
     }
     if (expectedCashFlows.length > 0) {
       setPortfolioIRR(calculateIRR(expectedCashFlows));
+      // Calculate sunk development cost
+      const totalDevEx = riskCategories.reduce(
+        (sum, cat) => sum + cat.devEx,
+        0
+      );
+      const successProbability = riskCategories.reduce(
+        (prob, cat) => prob * cat.goNoGoProbability,
+        1
+      );
+      setSunkDevCost(
+        totalDevEx * systemParams.pipelineSize * (1 - successProbability)
+      );
     }
-  }, [cashFlows, expectedCashFlows]);
+  }, [cashFlows, expectedCashFlows, riskCategories, systemParams.pipelineSize]);
 
   // Update the cash flow calculation to use the imported function
   const calculateCashFlowsCallback = useCallback(() => {
@@ -841,10 +855,11 @@ export default function Home() {
               }
               return i === 0
                 ? -riskCategories.reduce((sum, cat) => sum + cat.devEx, 0) *
-                    cumulativeProbability
+                    cumulativeProbability *
+                    systemParams.pipelineSize
                 : 0;
             }),
-          backgroundColor: "rgba(220, 80, 100, 0.7)", // Darker red with green undertone
+          backgroundColor: "rgba(220, 80, 100, 0.7)",
           borderColor: "rgb(200, 60, 80)",
           borderWidth: 1,
         },
@@ -868,10 +883,12 @@ export default function Home() {
                       (sum, cat) => sum + cat.capExIncrease,
                       0
                     )
-                  ) * cumulativeProbability
+                  ) *
+                    cumulativeProbability *
+                    systemParams.pipelineSize
                 : 0;
             }),
-          backgroundColor: "rgba(45, 145, 190, 0.7)", // Deeper blue with green undertone
+          backgroundColor: "rgba(45, 145, 190, 0.7)",
           borderColor: "rgb(35, 125, 170)",
           borderWidth: 1,
         },
@@ -892,10 +909,12 @@ export default function Home() {
                     financialParameters.baseOpExPerMW *
                     systemParams.systemSize *
                     Math.pow(1 + financialParameters.priceEscalation, i - 2)
-                  ) * cumulativeProbability
+                  ) *
+                    cumulativeProbability *
+                    systemParams.pipelineSize
                 : 0;
             }),
-          backgroundColor: "rgba(65, 170, 160, 0.7)", // Teal with more green
+          backgroundColor: "rgba(65, 170, 160, 0.7)",
           borderColor: "rgb(55, 150, 140)",
           borderWidth: 1,
         },
@@ -926,9 +945,14 @@ export default function Home() {
                 financialParameters.electricityRate *
                 Math.pow(1 + financialParameters.priceEscalation, i - 2);
 
-              return generation * escalatedRate * cumulativeProbability;
+              return (
+                generation *
+                escalatedRate *
+                cumulativeProbability *
+                systemParams.pipelineSize
+              );
             }),
-          backgroundColor: "rgba(130, 90, 190, 0.7)", // Deeper purple with green undertone
+          backgroundColor: "rgba(130, 90, 190, 0.7)",
           borderColor: "rgb(110, 70, 170)",
           borderWidth: 1,
         },
@@ -952,10 +976,11 @@ export default function Home() {
                       0
                     )) *
                     financialParameters.itcRate *
-                    cumulativeProbability
+                    cumulativeProbability *
+                    systemParams.pipelineSize
                 : 0;
             }),
-          backgroundColor: "rgba(225, 140, 50, 0.7)", // Deeper orange with green undertone
+          backgroundColor: "rgba(225, 140, 50, 0.7)",
           borderColor: "rgb(205, 120, 30)",
           borderWidth: 1,
         },
@@ -975,10 +1000,11 @@ export default function Home() {
                 ? systemParams.systemSize *
                     1000000 *
                     financialParameters.nySunIncentivePerWatt *
-                    cumulativeProbability
+                    cumulativeProbability *
+                    systemParams.pipelineSize
                 : 0;
             }),
-          backgroundColor: "rgba(80, 160, 120, 0.7)", // Professional green
+          backgroundColor: "rgba(80, 160, 120, 0.7)",
           borderColor: "rgb(60, 140, 100)",
           borderWidth: 1,
         },
@@ -1287,6 +1313,23 @@ export default function Home() {
                     }
                   />
                 </div>
+                <div className="flex flex-col">
+                  <label className="block text-sm font-medium text-[#004D40]">
+                    Pipeline Size (number of projects)
+                  </label>
+                  <input
+                    type="number"
+                    className="mt-1 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-[#00695C] focus:ring-[#00695C]"
+                    value={systemParams.pipelineSize || ""}
+                    onChange={(e) =>
+                      setSystemParams({
+                        ...systemParams,
+                        pipelineSize:
+                          e.target.value === "" ? 0 : parseInt(e.target.value),
+                      })
+                    }
+                  />
+                </div>
               </div>
             </div>
 
@@ -1418,6 +1461,111 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Key Metrics Section */}
+          <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+            <h2 className="text-2xl font-bold text-[#004D40] mb-6">
+              Key Metrics
+            </h2>
+
+            {/* Portfolio IRR - Prominent Display */}
+            <div className="text-center mb-8 group">
+              <div className="text-lg font-medium text-[#004D40] mb-2">
+                Portfolio IRR
+                <div className="relative inline-block">
+                  <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                    ⓘ
+                  </span>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
+                    The expected IRR across the entire portfolio, accounting for
+                    both successful and failed projects. This factors in the
+                    probability of projects failing at each development
+                    milestone.
+                  </div>
+                </div>
+              </div>
+              <div
+                className={`text-3xl font-bold ${
+                  portfolioIRR >= 0.1 ? "text-[#004D40]" : "text-red-700"
+                }`}
+              >
+                {(portfolioIRR * 100).toFixed(2)}%
+              </div>
+            </div>
+
+            {/* Supporting Metrics Grid */}
+            <div className="grid grid-cols-3 gap-6 w-full max-w-2xl mx-auto">
+              <div className="text-center p-4 bg-gray-50 rounded-lg group">
+                <div className="text-sm font-medium text-[#004D40] mb-1">
+                  Project IRR
+                  <div className="relative inline-block">
+                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                      ⓘ
+                    </span>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
+                      The Internal Rate of Return (IRR) for a successful project
+                      that reaches commercial operation, considering all
+                      development costs, capital expenses, and operating cash
+                      flows.
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className={`text-2xl font-bold ${
+                    successfulProjectIRR >= 0.1
+                      ? "text-[#004D40]"
+                      : "text-red-700"
+                  }`}
+                >
+                  {(successfulProjectIRR * 100).toFixed(2)}%
+                </div>
+              </div>
+
+              <div className="text-center p-4 bg-gray-50 rounded-lg group">
+                <div className="text-sm font-medium text-[#004D40] mb-1">
+                  Success Rate
+                  <div className="relative inline-block">
+                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                      ⓘ
+                    </span>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
+                      The percentage of projects in the development pipeline
+                      that successfully reach Notice to Proceed (NTP), based on
+                      the cumulative probability of passing all development
+                      milestones.
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className={`text-2xl font-bold ${
+                    projectsReachingNTP >= 0.25
+                      ? "text-[#004D40]"
+                      : "text-red-700"
+                  }`}
+                >
+                  {(projectsReachingNTP * 100).toFixed(1)}%
+                </div>
+              </div>
+
+              <div className="text-center p-4 bg-gray-50 rounded-lg group">
+                <div className="text-sm font-medium text-[#004D40] mb-1">
+                  Sunk Dev Costs
+                  <div className="relative inline-block">
+                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                      ⓘ
+                    </span>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
+                      The total development costs that would be lost across all
+                      projects in the pipeline that don't reach NTP.
+                    </div>
+                  </div>
+                </div>
+                <div className="text-2xl font-bold text-[#004D40]">
+                  ${Math.round(sunkDevCost).toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Chart Section */}
           <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             <div className="flex justify-between items-center mb-4">
@@ -1445,83 +1593,6 @@ export default function Home() {
                 >
                   Portfolio View
                 </button>
-              </div>
-            </div>
-
-            {/* IRR Display */}
-            <div className="flex justify-center mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="text-center mx-8 relative group">
-                <div className="text-lg font-medium text-[#004D40] flex items-center justify-center">
-                  IRR at NTP
-                  <div className="relative inline-block">
-                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                      ⓘ
-                    </span>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
-                      The Internal Rate of Return (IRR) for a successful project
-                      that reaches commercial operation, considering all
-                      development costs, capital expenses, and operating cash
-                      flows.
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className={`text-3xl font-bold ${
-                    successfulProjectIRR >= 0.1
-                      ? "text-[#004D40]"
-                      : "text-red-700"
-                  }`}
-                >
-                  {(successfulProjectIRR * 100).toFixed(2)}%
-                </div>
-              </div>
-              <div className="text-center mx-8 relative group">
-                <div className="text-lg font-medium text-[#004D40] flex items-center justify-center">
-                  Portfolio IRR
-                  <div className="relative inline-block">
-                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                      ⓘ
-                    </span>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
-                      The expected IRR across the entire portfolio, accounting
-                      for both successful and failed projects. This factors in
-                      the probability of projects failing at each development
-                      milestone.
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className={`text-3xl font-bold ${
-                    portfolioIRR >= 0.1 ? "text-[#004D40]" : "text-red-700"
-                  }`}
-                >
-                  {(portfolioIRR * 100).toFixed(2)}%
-                </div>
-              </div>
-              <div className="text-center mx-8 relative group">
-                <div className="text-lg font-medium text-[#004D40] flex items-center justify-center">
-                  % Pipeline Reaching NTP
-                  <div className="relative inline-block">
-                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                      ⓘ
-                    </span>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
-                      The percentage of projects in the development pipeline
-                      that successfully reach Notice to Proceed (NTP), based on
-                      the cumulative probability of passing all development
-                      milestones.
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className={`text-3xl font-bold ${
-                    projectsReachingNTP < 0.25
-                      ? "text-red-700"
-                      : "text-[#004D40]"
-                  }`}
-                >
-                  {(projectsReachingNTP * 100).toFixed(1)}%
-                </div>
               </div>
             </div>
 
