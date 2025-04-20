@@ -1555,7 +1555,7 @@ export default function Home() {
                     </span>
                     <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
                       The total development costs that would be lost across all
-                      projects in the pipeline that don't reach NTP.
+                      projects in the pipeline that don&apos;t reach NTP.
                     </div>
                   </div>
                 </div>
