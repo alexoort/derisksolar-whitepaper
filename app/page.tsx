@@ -1223,13 +1223,24 @@ export default function Home() {
 
   return (
     <>
-      <header className="bg-gradient-to-r from-[#004D40] via-[#00695C] to-[#00897B] py-12 px-6 shadow-md g mb-12">
+      <header className="bg-[#1D3834] py-12 px-6 shadow-md g mb-12">
         <div className="max-w-5xl mx-auto">
           <h1 className="text-5xl font-bold text-white text-center tracking-tight">
             Pre-Development at Scale
           </h1>
-          <p className="text-[#E0F2F1] text-center mt-4 text-xl font-light tracking-wide max-w-3xl mx-auto">
+          <p className="text-[#E0F2F1] text-center mt-4 text-2xl font-light tracking-wide max-w-3xl mx-auto">
             A Probabilistic Financial Model for Community Solar Development
+          </p>
+          <p className="text-[#E0F2F1] text-center mt-4 text-base font-light tracking-wide max-w-3xl mx-auto italic">
+            Dive deeper into how this model was built and what it means for
+            solar development.
+            <br />
+            <a
+              href="http://derisksolar.us/"
+              className="underline hover:text-white"
+            >
+              Read the whitepaper →
+            </a>
           </p>
         </div>
       </header>
