@@ -650,7 +650,7 @@ export default function Home() {
     acSystemSize: 2.4,
     projectLength: 25,
     degradationRate: 0.005,
-    pipelineSize: 10,
+    pipelineSize: 10, // Fixed value, not user input
   });
 
   // Financial Parameters
@@ -1313,22 +1313,18 @@ export default function Home() {
                     }
                   />
                 </div>
-                <div className="flex flex-col">
+              </div>
+              <h3 className="text-lg font-medium mt-6 mb-4 text-[#004D40] border-t border-[#B2DFDB] pt-4">
+                System Assumptions
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <label className="block text-sm font-medium text-[#004D40]">
-                    Pipeline Size (number of projects)
+                    Pipeline Size (# projects)
                   </label>
-                  <input
-                    type="number"
-                    className="mt-1 block w-full p-2 text-base rounded-md border-gray-300 shadow-sm focus:border-[#00695C] focus:ring-[#00695C]"
-                    value={systemParams.pipelineSize || ""}
-                    onChange={(e) =>
-                      setSystemParams({
-                        ...systemParams,
-                        pipelineSize:
-                          e.target.value === "" ? 0 : parseInt(e.target.value),
-                      })
-                    }
-                  />
+                  <div className="text-base text-gray-600 mt-2 p-2">
+                    {systemParams.pipelineSize.toLocaleString()}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1462,123 +1458,22 @@ export default function Home() {
           </div>
 
           {/* Key Metrics Section */}
-          <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-            <h2 className="text-2xl font-bold text-[#004D40] mb-6">
-              Key Metrics
-            </h2>
-
-            {/* Portfolio IRR - Prominent Display */}
-            <div className="text-center mb-8 group">
-              <div className="text-lg font-medium text-[#004D40] mb-2">
-                Portfolio IRR
-                <div className="relative inline-block">
-                  <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                    ⓘ
-                  </span>
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
-                    The expected IRR across the entire portfolio, accounting for
-                    both successful and failed projects. This factors in the
-                    probability of projects failing at each development
-                    milestone.
-                  </div>
-                </div>
-              </div>
-              <div
-                className={`text-3xl font-bold ${
-                  portfolioIRR >= 0.1 ? "text-[#004D40]" : "text-red-700"
-                }`}
-              >
-                {(portfolioIRR * 100).toFixed(2)}%
-              </div>
-            </div>
-
-            {/* Supporting Metrics Grid */}
-            <div className="grid grid-cols-3 gap-6 w-full max-w-2xl mx-auto">
-              <div className="text-center p-4 bg-gray-50 rounded-lg group">
-                <div className="text-sm font-medium text-[#004D40] mb-1">
-                  Project IRR
-                  <div className="relative inline-block">
-                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                      ⓘ
-                    </span>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
-                      The Internal Rate of Return (IRR) for a successful project
-                      that reaches commercial operation, considering all
-                      development costs, capital expenses, and operating cash
-                      flows.
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className={`text-2xl font-bold ${
-                    successfulProjectIRR >= 0.1
-                      ? "text-[#004D40]"
-                      : "text-red-700"
-                  }`}
-                >
-                  {(successfulProjectIRR * 100).toFixed(2)}%
-                </div>
-              </div>
-
-              <div className="text-center p-4 bg-gray-50 rounded-lg group">
-                <div className="text-sm font-medium text-[#004D40] mb-1">
-                  Success Rate
-                  <div className="relative inline-block">
-                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                      ⓘ
-                    </span>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
-                      The percentage of projects in the development pipeline
-                      that successfully reach Notice to Proceed (NTP), based on
-                      the cumulative probability of passing all development
-                      milestones.
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className={`text-2xl font-bold ${
-                    projectsReachingNTP >= 0.25
-                      ? "text-[#004D40]"
-                      : "text-red-700"
-                  }`}
-                >
-                  {(projectsReachingNTP * 100).toFixed(1)}%
-                </div>
-              </div>
-
-              <div className="text-center p-4 bg-gray-50 rounded-lg group">
-                <div className="text-sm font-medium text-[#004D40] mb-1">
-                  Sunk Dev Costs
-                  <div className="relative inline-block">
-                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                      ⓘ
-                    </span>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100]">
-                      The total development costs that would be lost across all
-                      projects in the pipeline that don&apos;t reach NTP.
-                    </div>
-                  </div>
-                </div>
-                <div className="text-2xl font-bold text-[#004D40]">
-                  ${Math.round(sunkDevCost).toLocaleString()}
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Chart Section */}
           <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-[#004D40]">
-                Project Cash Flow
+                {view === "individual"
+                  ? "Project Cash Flow"
+                  : "Portfolio Cash Flow"}
               </h2>
               <div className="flex justify-end mb-4 space-x-4">
                 <button
                   onClick={() => setView("individual")}
                   className={`px-4 py-2 rounded-md ${
                     view === "individual"
-                      ? "bg-[#004D40] text-white" // darker green when active
-                      : "bg-[#B2DFDB] text-[#004D40]" // lighter green when inactive
+                      ? "bg-[#004D40] text-white"
+                      : "bg-[#B2DFDB] text-[#004D40]"
                   }`}
                 >
                   Individual Project
@@ -1587,12 +1482,106 @@ export default function Home() {
                   onClick={() => setView("portfolio")}
                   className={`px-4 py-2 rounded-md ${
                     view === "portfolio"
-                      ? "bg-[#004D40] text-white" // darker green when active
-                      : "bg-[#B2DFDB] text-[#004D40]" // lighter green when inactive
+                      ? "bg-[#004D40] text-white"
+                      : "bg-[#B2DFDB] text-[#004D40]"
                   }`}
                 >
                   Portfolio View
                 </button>
+              </div>
+            </div>
+
+            {/* Key Metrics - Now inside the cash flow section */}
+            <div className="mb-4">
+              <div className="grid grid-cols-4 gap-8 justify-center">
+                <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
+                  <div className="text-sm font-medium text-[#004D40]">
+                    Project IRR
+                    <div className="relative inline-block">
+                      <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                        ⓘ
+                      </span>
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]">
+                        The IRR for an individual project that reaches NTP and
+                        commercial operation.
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    className={`text-2xl font-bold ${
+                      successfulProjectIRR >= 0.1
+                        ? "text-[#004D40]"
+                        : "text-red-700"
+                    }`}
+                  >
+                    {(successfulProjectIRR * 100).toFixed(2)}%
+                  </div>
+                </div>
+
+                <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
+                  <div className="text-sm font-medium text-[#004D40]">
+                    Portfolio IRR
+                    <div className="relative inline-block">
+                      <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                        ⓘ
+                      </span>
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]">
+                        The expected IRR across the entire portfolio, accounting
+                        for both successful and failed projects.
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    className={`text-3xl font-bold ${
+                      portfolioIRR >= 0.1 ? "text-[#004D40]" : "text-red-700"
+                    }`}
+                  >
+                    {(portfolioIRR * 100).toFixed(2)}%
+                  </div>
+                </div>
+
+                <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
+                  <div className="text-sm font-medium text-[#004D40]">
+                    Success Rate
+                    <div className="relative inline-block">
+                      <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                        ⓘ
+                      </span>
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]">
+                        The percentage of projects in the pipeline that obtain
+                        full approval and reach NTP, based on the cumulative
+                        probability of passing each development milestone.
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    className={`text-2xl font-bold ${
+                      projectsReachingNTP >= 0.25
+                        ? "text-[#004D40]"
+                        : "text-red-700"
+                    }`}
+                  >
+                    {(projectsReachingNTP * 100).toFixed(1)}%
+                  </div>
+                </div>
+
+                <div className="text-center group bg-gray-50/80 p-2 w-50 justify-self-center">
+                  <div className="text-sm font-medium text-[#004D40]">
+                    Sunk Dev Costs
+                    <div className="relative inline-block">
+                      <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                        ⓘ
+                      </span>
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]">
+                        The total development costs lost across failed projects,
+                        for a pipeline with 10 projects.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-2xl font-bold text-[#004D40]">
+                    ${Math.round(sunkDevCost).toLocaleString()}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1610,7 +1599,7 @@ export default function Home() {
                     },
                     title: {
                       display: true,
-                      text: "Individual Project Cash Flow Breakdown",
+                      text: "Individual Project Cash Flow",
                       color: "#004D40", // Paces dark green
                     },
                     tooltip: {
@@ -1666,7 +1655,7 @@ export default function Home() {
                     },
                     title: {
                       display: true,
-                      text: "Portfolio View - Expected Cash Flow Breakdown",
+                      text: "Portfolio Cash Flow",
                       color: "#004D40", // Paces dark green
                     },
                     tooltip: {
