@@ -1496,7 +1496,7 @@ export default function Home() {
               <div className="grid grid-cols-4 gap-8 justify-center">
                 <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
                   <div className="text-sm font-medium text-[#004D40]">
-                    Project IRR
+                    Project IRR at NTP
                     <div className="relative inline-block">
                       <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
                         ⓘ
@@ -1542,7 +1542,7 @@ export default function Home() {
 
                 <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
                   <div className="text-sm font-medium text-[#004D40]">
-                    Success Rate
+                    % Pipeline Reaching NTP
                     <div className="relative inline-block">
                       <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
                         ⓘ
