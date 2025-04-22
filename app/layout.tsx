@@ -14,15 +14,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Predevelopment at Scale | Community Solar Financial Model",
-  description: "A probabilistic financial model for solar development projects",
+  title: "Pre-Development at Scale | Paces",
+  description:
+    "A Probabilistic Financial Model for Community Solar Development",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
       <body
