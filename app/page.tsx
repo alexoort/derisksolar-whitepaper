@@ -27,6 +27,7 @@ import {
   calculateSensitivityIRR,
 } from "./utils/cashFlowCalculations";
 import * as XLSX from "xlsx";
+import { Tooltip as InfoTooltip } from "./components/Tooltip";
 
 // Register ChartJS components
 ChartJS.register(
@@ -63,9 +64,6 @@ const useMediaQuery = (query: string) => {
 function RiskCategories({
   riskCategories,
   setRiskCategories,
-  isMobile,
-  activeTooltip,
-  handleTooltipInteraction,
 }: {
   riskCategories: RiskCategory[];
   setRiskCategories: (categories: RiskCategory[]) => void;
@@ -93,50 +91,26 @@ function RiskCategories({
           <thead>
             <tr className="bg-[#E0F2F1]">
               <th className="px-3 py-3 text-[#1D3834]">Category</th>
-              <th className="px-3 py-3 text-[#1D3834] relative group">
-                Financial Risk
-                <span
-                  className="inline-block ml-1 text-xs text-[#1D3834] cursor-help"
-                  onClick={() => handleTooltipInteraction("financial-risk")}
-                >
-                  ⓘ
-                </span>
-                <div
-                  className={`absolute ${
-                    isMobile
-                      ? activeTooltip === "financial-risk"
-                        ? "block"
-                        : "hidden"
-                      : "hidden group-hover:block"
-                  } bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100] left-1/2 transform -translate-x-1/2 mt-1`}
+              <th className="px-3 py-3 text-[#1D3834]">
+                <InfoTooltip
+                  id="financial-risk-tooltip"
+                  trigger={<span>Financial Risk ⓘ</span>}
                 >
                   Higher financial risk means each milestone is more likely to
                   end up on the higher end of the budget range, for development
                   and/or capital expenses.
-                </div>
+                </InfoTooltip>
               </th>
-              <th className="px-3 py-3 text-[#004D40] relative group">
-                Approval Risk
-                <span
-                  className="inline-block ml-1 text-xs text-[#004D40] cursor-help"
-                  onClick={() => handleTooltipInteraction("approval-risk")}
-                >
-                  ⓘ
-                </span>
-                <div
-                  className={`absolute ${
-                    isMobile
-                      ? activeTooltip === "approval-risk"
-                        ? "block"
-                        : "hidden"
-                      : "hidden group-hover:block"
-                  } bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100] right-0 mt-1`}
+              <th className="px-3 py-3 text-[#1D3834]">
+                <InfoTooltip
+                  id="approval-risk-tooltip"
+                  trigger={<span>Approval Risk ⓘ</span>}
                 >
                   Indicates the likelihood of the project advancing to
                   subsequent milestones. Higher risk means the project is less
                   likely to advance to the next milestone, accounting for
                   projects that fail during development.
-                </div>
+                </InfoTooltip>
               </th>
             </tr>
           </thead>
@@ -1358,29 +1332,6 @@ export default function Home() {
     },
   });
 
-  // Update the tooltip components to use the new interaction handler
-  const renderTooltip = (tooltipId: string, content: string) => (
-    <div className="relative inline-block">
-      <span
-        className="inline-block ml-1 text-xs text-[#1D3834] cursor-help"
-        onClick={() => handleTooltipInteraction(tooltipId)}
-      >
-        ⓘ
-      </span>
-      <div
-        className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 ${
-          isMobile
-            ? activeTooltip === tooltipId
-              ? "block"
-              : "hidden"
-            : "hidden group-hover:block"
-        } bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]`}
-      >
-        {content}
-      </div>
-    </div>
-  );
-
   return (
     <>
       <header className="bg-[#1D3834] py-12 px-6 shadow-md g mb-12">
@@ -1620,18 +1571,27 @@ export default function Home() {
 
           {/* Key Metrics Section */}
           <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#1D3834] group">
-                {view === "individual"
-                  ? "Project Cash Flow"
-                  : "Portfolio Cash Flow"}
-                {view === "portfolio" &&
-                  renderTooltip(
-                    "portfolio-cash-flow",
-                    "The cash flow breakdown for the entire portfolio, showing expected costs and revenues across all projects."
-                  )}
+            <div
+              className={`${
+                isMobile
+                  ? "flex flex-col space-y-4"
+                  : "flex justify-between items-center"
+              } mb-4`}
+            >
+              <h2 className="text-2xl font-bold text-[#1D3834]">
+                {view === "individual" ? (
+                  "Project Cash Flow"
+                ) : (
+                  <InfoTooltip
+                    id="portfolio-cash-flow"
+                    trigger={<span>Portfolio Cash Flow ⓘ</span>}
+                  >
+                    The cash flow breakdown for the entire portfolio, showing
+                    expected costs and revenues across all projects.
+                  </InfoTooltip>
+                )}
               </h2>
-              <div className="flex justify-end mb-4 space-x-4">
+              <div className="flex space-x-4">
                 <button
                   onClick={() => setView("individual")}
                   className={`px-4 py-2 rounded-md ${
@@ -1664,11 +1624,13 @@ export default function Home() {
               >
                 <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
                   <div className="text-sm font-medium text-[#1D3834]">
-                    Project IRR at NTP
-                    {renderTooltip(
-                      "project-irr",
-                      "The IRR for an individual project that reaches NTP and commercial operation."
-                    )}
+                    <InfoTooltip
+                      id="project-irr"
+                      trigger={<span>Project IRR at NTP ⓘ</span>}
+                    >
+                      The IRR for an individual project that reaches NTP and
+                      commercial operation.
+                    </InfoTooltip>
                   </div>
                   <div
                     className={`text-2xl font-bold ${
@@ -1683,11 +1645,13 @@ export default function Home() {
 
                 <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
                   <div className="text-sm font-medium text-[#1D3834]">
-                    Portfolio IRR
-                    {renderTooltip(
-                      "portfolio-irr",
-                      "The expected IRR across the entire portfolio, accounting for both successful and failed projects."
-                    )}
+                    <InfoTooltip
+                      id="portfolio-irr"
+                      trigger={<span>Portfolio IRR ⓘ</span>}
+                    >
+                      The expected IRR across the entire portfolio, accounting
+                      for both successful and failed projects.
+                    </InfoTooltip>
                   </div>
                   <div
                     className={`text-3xl font-bold ${
@@ -1700,11 +1664,14 @@ export default function Home() {
 
                 <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
                   <div className="text-sm font-medium text-[#1D3834]">
-                    % Pipeline Reaching NTP
-                    {renderTooltip(
-                      "pipeline-ntp",
-                      "The percentage of projects in the pipeline that obtain full approval and reach NTP, based on the cumulative probability of passing each development milestone."
-                    )}
+                    <InfoTooltip
+                      id="pipeline-ntp"
+                      trigger={<span>% Pipeline Reaching NTP ⓘ</span>}
+                    >
+                      The percentage of projects in the pipeline that obtain
+                      full approval and reach NTP, based on the cumulative
+                      probability of passing each development milestone.
+                    </InfoTooltip>
                   </div>
                   <div
                     className={`text-2xl font-bold ${
@@ -1926,28 +1893,15 @@ export default function Home() {
                   </tr>
                   <tr>
                     <td className="px-3 py-3 font-medium text-[#1D3834] group relative">
-                      Expected Cash Flow
-                      <span
-                        className="inline-block ml-1 text-xs text-[#004D40] cursor-help"
-                        onClick={() =>
-                          handleTooltipInteraction("expected-cash-flow")
-                        }
+                      <InfoTooltip
+                        id="expected-cash-flow"
+                        trigger={<span>Expected Cash Flow ⓘ</span>}
                       >
-                        ⓘ
-                      </span>
-                      <div
-                        className={`absolute ${
-                          isMobile
-                            ? activeTooltip === "expected-cash-flow"
-                              ? "block"
-                              : "hidden"
-                            : "hidden group-hover:block"
-                        } bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100] left-full ml-2 top-0`}
-                      >
-                        The expected cashflow indicates the average cashflow for
-                        a project in the pipeline, by weighting actual cashflows
-                        with the % of projects reaching each stage.
-                      </div>
+                        The expected cashflow indicates the <i>average</i>{" "}
+                        cashflow for a project in the pipeline, by weighting
+                        actual cashflows with the % of projects reaching each
+                        stage.
+                      </InfoTooltip>
                     </td>
                     {expectedCashFlows.map((flow, i) => (
                       <td key={i} className="px-3 py-3 text-gray-600">
