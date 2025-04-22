@@ -43,6 +43,23 @@ ChartJS.register(
   annotationPlugin
 );
 
+// Add useMediaQuery hook
+const useMediaQuery = (query: string) => {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    if (media.matches !== matches) {
+      setMatches(media.matches);
+    }
+    const listener = () => setMatches(media.matches);
+    media.addListener(listener);
+    return () => media.removeListener(listener);
+  }, [matches, query]);
+
+  return matches;
+};
+
 function RiskCategories({
   riskCategories,
   setRiskCategories,
@@ -268,10 +285,12 @@ function SplitRiskGraph({
   riskCategories,
   systemParams,
   financialParameters,
+  isMobile,
 }: {
   riskCategories: RiskCategory[];
   systemParams: SystemParameters;
   financialParameters: FinancialParameters;
+  isMobile: boolean;
 }) {
   const calculateCategoryIRRCallback = useCallback(
     (
@@ -337,12 +356,12 @@ function SplitRiskGraph({
         beginAtZero: false,
         position: "left" as const,
         title: {
-          display: index === 0,
+          display: isMobile || index === 0,
           text: "Portfolio IRR (%)",
           font: { size: 10 },
         },
         ticks: {
-          display: index === 0,
+          display: isMobile || index === 0,
           font: { size: 10 },
           stepSize: 1,
         },
@@ -400,7 +419,11 @@ function SplitRiskGraph({
           <span className="text-sm text-gray-600">High Financial Risk</span>
         </div>
       </div>
-      <div className="grid grid-cols-5 gap-0">
+      <div
+        className={`grid ${
+          isMobile ? "grid-cols-1 gap-8" : "grid-cols-5 gap-0"
+        }`}
+      >
         {riskCategories.map((category, index) => {
           const color = categoryColors[category.name] || "rgb(201, 203, 207)";
 
@@ -438,8 +461,11 @@ function SplitRiskGraph({
           };
 
           return (
-            <div key={category.name} className="h-[300px] relative">
-              {index > 0 && (
+            <div
+              key={category.name}
+              className={`h-[300px] relative ${isMobile ? "w-full" : ""}`}
+            >
+              {index > 0 && !isMobile && (
                 <div
                   className="absolute inset-y-0 left-0 w-px bg-gray-200"
                   style={{ left: "-1px", zIndex: 10 }}
@@ -574,6 +600,9 @@ function SensitivityAnalysis({
 }
 
 export default function Home() {
+  // Add mobile detection
+  const isMobile = useMediaQuery("(max-width: 768px)");
+
   // Risk Categories
   const [riskCategories, setRiskCategories] = useState<RiskCategory[]>([
     {
@@ -1208,6 +1237,90 @@ export default function Home() {
     }
   }, [cashFlows, riskCategories, systemParams, financialParameters]);
 
+  // Update the chart options to handle mobile view
+  const getChartOptions = (isPortfolio: boolean) => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: isMobile ? ("y" as const) : ("x" as const),
+    plugins: {
+      legend: {
+        position: "top" as const,
+        labels: {
+          color: "#004D40",
+        },
+      },
+      title: {
+        display: true,
+        text: isPortfolio
+          ? "Portfolio Cash Flow"
+          : "Individual Project Cash Flow",
+        color: "#004D40",
+      },
+      tooltip: {
+        callbacks: {
+          label: function (context: TooltipItem<"bar">) {
+            const value = context.raw as number;
+            const year = context.dataIndex;
+            if (isPortfolio) {
+              let cumulativeProbability = 1;
+              if (year > 0) {
+                cumulativeProbability = riskCategories.reduce(
+                  (prob, cat) => prob * cat.goNoGoProbability,
+                  1
+                );
+              }
+              return `${
+                context.dataset.label
+              }: $${value.toLocaleString()} (% of pipeline: ${(
+                cumulativeProbability * 100
+              ).toFixed(2)}%)`;
+            }
+            return `${context.dataset.label}: $${value.toLocaleString()}`;
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        stacked: true,
+        ticks: {
+          color: "#004D40",
+          callback: function (value: number | string) {
+            if (isMobile) {
+              if (value === 1) return ["Year 1", "(NTP)"];
+              if (value === 2) return ["Year 2", "(COD)"];
+              return `Year ${value}`;
+            }
+            return `$${value.toLocaleString()}`;
+          },
+        },
+        barThickness: isMobile ? 20 : undefined,
+        categoryPercentage: isMobile ? 0.95 : undefined,
+        barPercentage: isMobile ? 0.98 : undefined,
+      },
+      x: {
+        stacked: true,
+        ticks: {
+          color: "#004D40",
+          callback: function (value: number | string) {
+            if (isMobile) {
+              return `$${value.toLocaleString()}`;
+            }
+            if (value === 1) return ["Year 1", "(NTP)"];
+            if (value === 2) return ["Year 2", "(COD)"];
+            return `Year ${value}`;
+          },
+        },
+      },
+    },
+    layout: {
+      padding: {
+        top: 20,
+        bottom: 20,
+      },
+    },
+  });
+
   return (
     <>
       <header className="bg-[#1D3834] py-12 px-6 shadow-md g mb-12">
@@ -1454,8 +1567,9 @@ export default function Home() {
                     <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
                       ⓘ
                     </span>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-500 w-64 z-[100]">
-                      The total cash flow breakdown for a 10-project portfolio.
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]">
+                      The cash flow breakdown for the entire portfolio, showing
+                      expected costs and revenues across all projects.
                     </div>
                   </div>
                 )}
@@ -1486,7 +1600,11 @@ export default function Home() {
 
             {/* Key Metrics - Now inside the cash flow section */}
             <div className="mb-4">
-              <div className="grid grid-cols-3 gap-6 justify-center max-w-3xl mx-auto">
+              <div
+                className={`grid ${
+                  isMobile ? "grid-cols-1" : "grid-cols-3"
+                } gap-4 justify-center max-w-2xl mx-auto`}
+              >
                 <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
                   <div className="text-sm font-medium text-[#004D40]">
                     Project IRR at NTP
@@ -1560,129 +1678,19 @@ export default function Home() {
               </div>
             </div>
 
-            {view === "individual" ? (
-              <Bar
-                data={chartData.individual}
-                options={{
-                  responsive: true,
-                  plugins: {
-                    legend: {
-                      position: "top" as const,
-                      labels: {
-                        color: "#004D40", // Paces dark green
-                      },
-                    },
-                    title: {
-                      display: true,
-                      text: "Individual Project Cash Flow",
-                      color: "#004D40", // Paces dark green
-                    },
-                    tooltip: {
-                      callbacks: {
-                        label: function (context) {
-                          const value = context.raw as number;
-                          return `${
-                            context.dataset.label
-                          }: $${value.toLocaleString()}`;
-                        },
-                      },
-                    },
-                  },
-                  scales: {
-                    y: {
-                      stacked: true,
-                      ticks: {
-                        color: "#004D40", // Paces dark green
-                        callback: function (value: number | string) {
-                          return `$${value.toLocaleString()}`;
-                        },
-                      },
-                    },
-                    x: {
-                      stacked: true,
-                      ticks: {
-                        color: "#004D40", // Paces dark green
-                        callback: function (value: number | string) {
-                          if (value === 1) {
-                            return ["Year 1", "(NTP)"];
-                          }
-                          if (value === 2) {
-                            return ["Year 2", "(COD)"];
-                          }
-                          return `Year ${value}`;
-                        },
-                      },
-                    },
-                  },
-                }}
-              />
-            ) : (
-              <Bar
-                data={chartData.portfolio}
-                options={{
-                  responsive: true,
-                  plugins: {
-                    legend: {
-                      position: "top" as const,
-                      labels: {
-                        color: "#004D40", // Paces dark green
-                      },
-                    },
-                    title: {
-                      display: true,
-                      text: "Portfolio Cash Flow",
-                      color: "#004D40", // Paces dark green
-                    },
-                    tooltip: {
-                      callbacks: {
-                        label: function (context) {
-                          const value = context.raw as number;
-                          const year = context.dataIndex;
-                          let cumulativeProbability = 1;
-                          if (year > 0) {
-                            cumulativeProbability = riskCategories.reduce(
-                              (prob, cat) => prob * cat.goNoGoProbability,
-                              1
-                            );
-                          }
-                          return `${
-                            context.dataset.label
-                          }: $${value.toLocaleString()} (% of pipeline: ${(
-                            cumulativeProbability * 100
-                          ).toFixed(2)}%)`;
-                        },
-                      },
-                    },
-                  },
-                  scales: {
-                    y: {
-                      stacked: true,
-                      ticks: {
-                        color: "#004D40", // Paces dark green
-                        callback: function (value: number | string) {
-                          return `$${value.toLocaleString()}`;
-                        },
-                      },
-                    },
-                    x: {
-                      stacked: true,
-                      ticks: {
-                        color: "#004D40", // Paces dark green
-                        callback: function (value: number | string) {
-                          if (value === 1) {
-                            return ["Year 1", "(NTP)"];
-                          }
-                          if (value === 2) {
-                            return ["Year 2", "(COD)"];
-                          }
-                          return `Year ${value}`;
-                        },
-                      },
-                    },
-                  },
-                }}
-              />
-            )}
+            <div className="h-[700px]">
+              {view === "individual" ? (
+                <Bar
+                  data={chartData.individual}
+                  options={getChartOptions(false)}
+                />
+              ) : (
+                <Bar
+                  data={chartData.portfolio}
+                  options={getChartOptions(true)}
+                />
+              )}
+            </div>
           </div>
 
           {/* Risk Category Analysis */}
@@ -1690,6 +1698,7 @@ export default function Home() {
             riskCategories={riskCategories}
             systemParams={systemParams}
             financialParameters={financialParameters}
+            isMobile={isMobile}
           />
 
           {/* Sensitivity Analysis */}
