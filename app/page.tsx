@@ -676,7 +676,6 @@ export default function Home() {
 
   // Add this with the other state declarations at the top of the component
   const [projectsReachingNTP, setProjectsReachingNTP] = useState<number>(0);
-  const [sunkDevCost, setSunkDevCost] = useState<number>(0);
 
   // Update IRR calculations when cash flows change
   useEffect(() => {
@@ -685,18 +684,6 @@ export default function Home() {
     }
     if (expectedCashFlows.length > 0) {
       setPortfolioIRR(calculateIRR(expectedCashFlows));
-      // Calculate sunk development cost
-      const totalDevEx = riskCategories.reduce(
-        (sum, cat) => sum + cat.devEx,
-        0
-      );
-      const successProbability = riskCategories.reduce(
-        (prob, cat) => prob * cat.goNoGoProbability,
-        1
-      );
-      setSunkDevCost(
-        totalDevEx * systemParams.pipelineSize * (1 - successProbability)
-      );
     }
   }, [cashFlows, expectedCashFlows, riskCategories, systemParams.pipelineSize]);
 
@@ -1325,19 +1312,6 @@ export default function Home() {
                   />
                 </div>
               </div>
-              <h3 className="text-lg font-medium mt-6 mb-4 text-[#004D40] border-t border-[#B2DFDB] pt-4">
-                System Assumptions
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#004D40]">
-                    Pipeline Size (# projects)
-                  </label>
-                  <div className="text-base text-gray-600 mt-2 p-2">
-                    {systemParams.pipelineSize.toLocaleString()}
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Financial Parameters */}
@@ -1469,14 +1443,22 @@ export default function Home() {
           </div>
 
           {/* Key Metrics Section */}
-
-          {/* Chart Section */}
           <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#004D40]">
+              <h2 className="text-2xl font-bold text-[#004D40] group">
                 {view === "individual"
                   ? "Project Cash Flow"
                   : "Portfolio Cash Flow"}
+                {view === "portfolio" && (
+                  <div className="relative inline-block">
+                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                      ⓘ
+                    </span>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-500 w-64 z-[100]">
+                      The total cash flow breakdown for a 10-project portfolio.
+                    </div>
+                  </div>
+                )}
               </h2>
               <div className="flex justify-end mb-4 space-x-4">
                 <button
@@ -1504,7 +1486,7 @@ export default function Home() {
 
             {/* Key Metrics - Now inside the cash flow section */}
             <div className="mb-4">
-              <div className="grid grid-cols-4 gap-8 justify-center">
+              <div className="grid grid-cols-3 gap-6 justify-center max-w-3xl mx-auto">
                 <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
                   <div className="text-sm font-medium text-[#004D40]">
                     Project IRR at NTP
@@ -1573,24 +1555,6 @@ export default function Home() {
                     }`}
                   >
                     {(projectsReachingNTP * 100).toFixed(1)}%
-                  </div>
-                </div>
-
-                <div className="text-center group bg-gray-50/80 p-2 w-50 justify-self-center">
-                  <div className="text-sm font-medium text-[#004D40]">
-                    Sunk Dev Costs
-                    <div className="relative inline-block">
-                      <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                        ⓘ
-                      </span>
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]">
-                        The total development costs lost across failed projects,
-                        for a pipeline with 10 projects.
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-2xl font-bold text-[#004D40]">
-                    ${Math.round(sunkDevCost).toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -1740,7 +1704,7 @@ export default function Home() {
           {/* Cash Flow Table */}
           <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#004D40]">
+              <h2 className="text-2xl font-bold text-[#004D40] group">
                 Cash Flow Table
               </h2>
               <button
@@ -1911,8 +1875,19 @@ export default function Home() {
                       })}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-[#004D40]">
+                    <td className="px-3 py-3 font-medium text-[#004D40] group relative">
                       Expected Cash Flow
+                      <div className="inline-block">
+                        <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
+                          ⓘ
+                        </span>
+                        <div className="absolute left-full top-0 ml-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100] shadow-lg">
+                          The expected cashflow indicates the <i>average</i>{" "}
+                          cashflow for a project in the pipeline, by weighting
+                          actual cashflows with the % of projects reaching each
+                          stage.
+                        </div>
+                      </div>
                     </td>
                     {expectedCashFlows.map((flow, i) => (
                       <td key={i} className="px-3 py-3 text-gray-600">
@@ -1960,9 +1935,16 @@ export default function Home() {
               <li className="flex items-start">
                 <span className="text-[#004D40] mr-3 text-xl">•</span>
                 <span className="text-lg">
-                  Specific financial parameters: a $140 electricity rate
-                  (derived from previous community solar models), a 2% standard
-                  escalation rate, and a base NY Sun incentive for NYSEG.
+                  Specific financial parameters: a $140/MWh electricity rate
+                  (derived from{" "}
+                  <a
+                    href="https://docs.google.com/spreadsheets/d/1eQgW3YfRWVmLgBDu5eB-xldKXDBcNolm/edit?gid=1515816688#gid=1515816688"
+                    className="underline"
+                  >
+                    previous community solar models
+                  </a>
+                  ), a 2% standard escalation rate, and a base $0.17/W NY Sun
+                  incentive for upstate New York.
                 </span>
               </li>
               <li className="flex items-start">
