@@ -63,9 +63,15 @@ const useMediaQuery = (query: string) => {
 function RiskCategories({
   riskCategories,
   setRiskCategories,
+  isMobile,
+  activeTooltip,
+  handleTooltipInteraction,
 }: {
   riskCategories: RiskCategory[];
   setRiskCategories: (categories: RiskCategory[]) => void;
+  isMobile: boolean;
+  activeTooltip: string | null;
+  handleTooltipInteraction: (tooltipId: string) => void;
 }) {
   const updateRiskValues = (category: RiskCategory) => {
     if (category.riskLevel === "High") {
@@ -79,20 +85,31 @@ function RiskCategories({
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4 text-[#004D40]">
+      <h2 className="text-xl font-semibold mb-4 text-[#1D3834]">
         Risk Categories
       </h2>
       <div className="overflow-x-auto">
         <table className="min-w-full text-base">
           <thead>
             <tr className="bg-[#E0F2F1]">
-              <th className="px-3 py-3 text-[#004D40]">Category</th>
-              <th className="px-3 py-3 text-[#004D40] relative group">
+              <th className="px-3 py-3 text-[#1D3834]">Category</th>
+              <th className="px-3 py-3 text-[#1D3834] relative group">
                 Financial Risk
-                <span className="inline-block ml-1 text-xs text-[#004D40]">
+                <span
+                  className="inline-block ml-1 text-xs text-[#1D3834] cursor-help"
+                  onClick={() => handleTooltipInteraction("financial-risk")}
+                >
                   ⓘ
                 </span>
-                <div className="absolute hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100] left-1/2 transform -translate-x-1/2 mt-1">
+                <div
+                  className={`absolute ${
+                    isMobile
+                      ? activeTooltip === "financial-risk"
+                        ? "block"
+                        : "hidden"
+                      : "hidden group-hover:block"
+                  } bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100] left-1/2 transform -translate-x-1/2 mt-1`}
+                >
                   Higher financial risk means each milestone is more likely to
                   end up on the higher end of the budget range, for development
                   and/or capital expenses.
@@ -100,10 +117,21 @@ function RiskCategories({
               </th>
               <th className="px-3 py-3 text-[#004D40] relative group">
                 Approval Risk
-                <span className="inline-block ml-1 text-xs text-[#004D40]">
+                <span
+                  className="inline-block ml-1 text-xs text-[#004D40] cursor-help"
+                  onClick={() => handleTooltipInteraction("approval-risk")}
+                >
                   ⓘ
                 </span>
-                <div className="absolute hidden group-hover:block bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100] right-0 mt-1">
+                <div
+                  className={`absolute ${
+                    isMobile
+                      ? activeTooltip === "approval-risk"
+                        ? "block"
+                        : "hidden"
+                      : "hidden group-hover:block"
+                  } bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100] right-0 mt-1`}
+                >
                   Indicates the likelihood of the project advancing to
                   subsequent milestones. Higher risk means the project is less
                   likely to advance to the next milestone, accounting for
@@ -115,7 +143,7 @@ function RiskCategories({
           <tbody>
             {riskCategories.map((category, index) => (
               <tr key={index} className="border-b border-[#B2DFDB]">
-                <td className="px-3 py-3 font-medium text-[#004D40]">
+                <td className="px-3 py-3 font-medium text-[#1D3834]">
                   {category.name}
                 </td>
                 <td className="px-3 py-3">
@@ -141,18 +169,20 @@ function RiskCategories({
                     className="w-full p-2 border border-[#B2DFDB] rounded-md focus:outline-none focus:ring-2 focus:ring-[#00695C]"
                     value={category.approvalRisk}
                     onChange={(e) => {
-                      const newCategories = [...riskCategories];
-                      newCategories[index].approvalRisk = parseInt(
-                        e.target.value
+                      const newValue = Math.min(
+                        15,
+                        Math.max(1, parseInt(e.target.value) || 1)
                       );
+                      const newCategories = [...riskCategories];
+                      newCategories[index].approvalRisk = newValue;
                       newCategories[index].goNoGoProbability =
                         calculateGoNoGoProbability(
-                          newCategories[index].approvalRisk,
+                          newValue,
                           newCategories[index].worstCaseScenario
                         );
                       setRiskCategories(newCategories);
                     }}
-                    min="0"
+                    min="1"
                     max="15"
                   />
                 </td>
@@ -337,7 +367,7 @@ function SplitRiskGraph({
       title: {
         display: true,
         text: riskCategories[index].name,
-        color: "#004D40",
+        color: "#1D3834",
         font: { size: 14 },
         padding: { bottom: 15 },
       },
@@ -406,7 +436,7 @@ function SplitRiskGraph({
 
   return (
     <div className="mt-12 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-      <h2 className="text-2xl font-bold mb-4 text-[#004D40]">
+      <h2 className="text-2xl font-bold mb-4 text-[#1D3834]">
         Risk Category Analysis
       </h2>
       <div className="flex items-center justify-center mb-4 space-x-8">
@@ -528,11 +558,11 @@ function SensitivityAnalysis({
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-      <h2 className="text-2xl font-bold mb-4 text-[#004D40]">
+      <h2 className="text-2xl font-bold mb-4 text-[#1D3834]">
         Sensitivity Analysis
       </h2>
       <div className="mb-4">
-        <label className="block text-lg font-medium text-[#004D40] mb-2">
+        <label className="block text-lg font-medium text-[#1D3834] mb-2">
           Select Risk Category
         </label>
         <select
@@ -552,17 +582,17 @@ function SensitivityAnalysis({
         <table className="w-1/2 mx-auto text-lg">
           <thead>
             <tr className="bg-[#E0F2F1]">
-              <th className="px-4 py-3 text-[#004D40]">Financing Risk</th>
-              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 0</th>
-              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 5</th>
-              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 10</th>
-              <th className="px-4 py-3 text-[#004D40]">Approval Risk: 15</th>
+              <th className="px-4 py-3 text-[#1D3834]">Financing Risk</th>
+              <th className="px-4 py-3 text-[#1D3834]">Approval Risk: 0</th>
+              <th className="px-4 py-3 text-[#1D3834]">Approval Risk: 5</th>
+              <th className="px-4 py-3 text-[#1D3834]">Approval Risk: 10</th>
+              <th className="px-4 py-3 text-[#1D3834]">Approval Risk: 15</th>
             </tr>
           </thead>
           <tbody>
             {Object.entries(sensitivityData).map(([riskLevel, data]) => (
               <tr key={riskLevel} className="border-b border-[#B2DFDB]">
-                <td className="px-4 py-3 font-medium text-[#004D40]">
+                <td className="px-4 py-3 font-medium text-[#1D3834]">
                   {riskLevel}
                 </td>
                 {[0, 5, 10, 15].map((approvalRisk) => {
@@ -600,8 +630,15 @@ function SensitivityAnalysis({
 }
 
 export default function Home() {
-  // Add mobile detection
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const isMobile = useMediaQuery("(max-width: 768px)");
+
+  // Add this helper function to handle tooltip interactions
+  const handleTooltipInteraction = (tooltipId: string) => {
+    if (isMobile) {
+      setActiveTooltip(activeTooltip === tooltipId ? null : tooltipId);
+    }
+  };
 
   // Risk Categories
   const [riskCategories, setRiskCategories] = useState<RiskCategory[]>([
@@ -1246,7 +1283,7 @@ export default function Home() {
       legend: {
         position: "top" as const,
         labels: {
-          color: "#004D40",
+          color: "#1D3834",
         },
       },
       title: {
@@ -1254,7 +1291,7 @@ export default function Home() {
         text: isPortfolio
           ? "Portfolio Cash Flow"
           : "Individual Project Cash Flow",
-        color: "#004D40",
+        color: "#1D3834",
       },
       tooltip: {
         callbacks: {
@@ -1284,7 +1321,7 @@ export default function Home() {
       y: {
         stacked: true,
         ticks: {
-          color: "#004D40",
+          color: "#1D3834",
           callback: function (value: number | string) {
             if (isMobile) {
               if (value === 1) return ["Year 1", "(NTP)"];
@@ -1301,7 +1338,7 @@ export default function Home() {
       x: {
         stacked: true,
         ticks: {
-          color: "#004D40",
+          color: "#1D3834",
           callback: function (value: number | string) {
             if (isMobile) {
               return `$${value.toLocaleString()}`;
@@ -1320,6 +1357,29 @@ export default function Home() {
       },
     },
   });
+
+  // Update the tooltip components to use the new interaction handler
+  const renderTooltip = (tooltipId: string, content: string) => (
+    <div className="relative inline-block">
+      <span
+        className="inline-block ml-1 text-xs text-[#1D3834] cursor-help"
+        onClick={() => handleTooltipInteraction(tooltipId)}
+      >
+        ⓘ
+      </span>
+      <div
+        className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 ${
+          isMobile
+            ? activeTooltip === tooltipId
+              ? "block"
+              : "hidden"
+            : "hidden group-hover:block"
+        } bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]`}
+      >
+        {content}
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -1347,7 +1407,7 @@ export default function Home() {
 
       <main className="main-content">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-semibold mb-8 text-[#004D40]">
+          <h1 className="text-3xl font-semibold mb-8 text-[#1D3834]">
             Model Inputs
           </h1>
 
@@ -1356,17 +1416,20 @@ export default function Home() {
               <RiskCategories
                 riskCategories={riskCategories}
                 setRiskCategories={setRiskCategories}
+                isMobile={isMobile}
+                activeTooltip={activeTooltip}
+                handleTooltipInteraction={handleTooltipInteraction}
               />
             </div>
 
             {/* System Parameters */}
             <div className="card p-6">
-              <h2 className="text-xl font-semibold mb-4 text-[#004D40]">
+              <h2 className="text-xl font-semibold mb-4 text-[#1D3834]">
                 System Parameters
               </h2>
               <div className="grid grid-cols-1 gap-4">
                 <div className="flex flex-col">
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     Capacity Factor (%)
                   </label>
                   <input
@@ -1385,7 +1448,7 @@ export default function Home() {
                   />
                 </div>
                 <div className="flex flex-col">
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     System Size (MW)
                   </label>
                   <input
@@ -1408,7 +1471,7 @@ export default function Home() {
                   />
                 </div>
                 <div className="flex flex-col">
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     Project Length (years)
                   </label>
                   <input
@@ -1429,12 +1492,12 @@ export default function Home() {
 
             {/* Financial Parameters */}
             <div className="card p-6">
-              <h2 className="text-xl font-semibold mb-4 text-[#004D40]">
+              <h2 className="text-xl font-semibold mb-4 text-[#1D3834]">
                 Financial Parameters
               </h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     Base Case CapEx ($/MW)
                   </label>
                   <input
@@ -1452,7 +1515,7 @@ export default function Home() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     Additional CapEx
                   </label>
                   <div className="text-base text-gray-600 mt-2 p-2">
@@ -1463,7 +1526,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     Base OpEx ($/MW/year)
                   </label>
                   <input
@@ -1479,7 +1542,7 @@ export default function Home() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     Total CapEx
                   </label>
                   <div className="text-base text-gray-600 mt-2 p-2">
@@ -1495,7 +1558,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     ITC Rate (%)
                   </label>
                   <input
@@ -1511,7 +1574,7 @@ export default function Home() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     Total DevEx
                   </label>
                   <div className="text-base text-gray-600 mt-2 p-2">
@@ -1523,12 +1586,12 @@ export default function Home() {
                 </div>
               </div>
 
-              <h3 className="text-lg font-medium mt-6 mb-4 text-[#004D40] border-t border-[#B2DFDB] pt-4">
+              <h3 className="text-lg font-medium mt-6 mb-4 text-[#1D3834] border-t border-[#B2DFDB] pt-4">
                 Financial Assumptions
               </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     Electricity Rate ($/MWh)
                   </label>
                   <div className="text-base text-gray-600 mt-2 p-2">
@@ -1536,7 +1599,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     Escalation Rate (%)
                   </label>
                   <div className="text-base text-gray-600 mt-2 p-2">
@@ -1544,7 +1607,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#004D40]">
+                  <label className="block text-sm font-medium text-[#1D3834]">
                     NY-Sun Incentive ($/W)
                   </label>
                   <div className="text-base text-gray-600 mt-2 p-2">
@@ -1558,29 +1621,23 @@ export default function Home() {
           {/* Key Metrics Section */}
           <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#004D40] group">
+              <h2 className="text-2xl font-bold text-[#1D3834] group">
                 {view === "individual"
                   ? "Project Cash Flow"
                   : "Portfolio Cash Flow"}
-                {view === "portfolio" && (
-                  <div className="relative inline-block">
-                    <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                      ⓘ
-                    </span>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]">
-                      The cash flow breakdown for the entire portfolio, showing
-                      expected costs and revenues across all projects.
-                    </div>
-                  </div>
-                )}
+                {view === "portfolio" &&
+                  renderTooltip(
+                    "portfolio-cash-flow",
+                    "The cash flow breakdown for the entire portfolio, showing expected costs and revenues across all projects."
+                  )}
               </h2>
               <div className="flex justify-end mb-4 space-x-4">
                 <button
                   onClick={() => setView("individual")}
                   className={`px-4 py-2 rounded-md ${
                     view === "individual"
-                      ? "bg-[#004D40] text-white"
-                      : "bg-[#B2DFDB] text-[#004D40]"
+                      ? "bg-[#1D3834] text-white"
+                      : "bg-[#B2DFDB] text-[#1D3834]"
                   }`}
                 >
                   Individual Project
@@ -1589,8 +1646,8 @@ export default function Home() {
                   onClick={() => setView("portfolio")}
                   className={`px-4 py-2 rounded-md ${
                     view === "portfolio"
-                      ? "bg-[#004D40] text-white"
-                      : "bg-[#B2DFDB] text-[#004D40]"
+                      ? "bg-[#1D3834] text-white"
+                      : "bg-[#B2DFDB] text-[#1D3834]"
                   }`}
                 >
                   Portfolio View
@@ -1606,17 +1663,12 @@ export default function Home() {
                 } gap-4 justify-center max-w-2xl mx-auto`}
               >
                 <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
-                  <div className="text-sm font-medium text-[#004D40]">
+                  <div className="text-sm font-medium text-[#1D3834]">
                     Project IRR at NTP
-                    <div className="relative inline-block">
-                      <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                        ⓘ
-                      </span>
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]">
-                        The IRR for an individual project that reaches NTP and
-                        commercial operation.
-                      </div>
-                    </div>
+                    {renderTooltip(
+                      "project-irr",
+                      "The IRR for an individual project that reaches NTP and commercial operation."
+                    )}
                   </div>
                   <div
                     className={`text-2xl font-bold ${
@@ -1630,17 +1682,12 @@ export default function Home() {
                 </div>
 
                 <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
-                  <div className="text-sm font-medium text-[#004D40]">
+                  <div className="text-sm font-medium text-[#1D3834]">
                     Portfolio IRR
-                    <div className="relative inline-block">
-                      <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                        ⓘ
-                      </span>
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]">
-                        The expected IRR across the entire portfolio, accounting
-                        for both successful and failed projects.
-                      </div>
-                    </div>
+                    {renderTooltip(
+                      "portfolio-irr",
+                      "The expected IRR across the entire portfolio, accounting for both successful and failed projects."
+                    )}
                   </div>
                   <div
                     className={`text-3xl font-bold ${
@@ -1652,18 +1699,12 @@ export default function Home() {
                 </div>
 
                 <div className="text-center group bg-gray-50/80 p-2 w-60 justify-self-center">
-                  <div className="text-sm font-medium text-[#004D40]">
+                  <div className="text-sm font-medium text-[#1D3834]">
                     % Pipeline Reaching NTP
-                    <div className="relative inline-block">
-                      <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                        ⓘ
-                      </span>
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100]">
-                        The percentage of projects in the pipeline that obtain
-                        full approval and reach NTP, based on the cumulative
-                        probability of passing each development milestone.
-                      </div>
-                    </div>
+                    {renderTooltip(
+                      "pipeline-ntp",
+                      "The percentage of projects in the pipeline that obtain full approval and reach NTP, based on the cumulative probability of passing each development milestone."
+                    )}
                   </div>
                   <div
                     className={`text-2xl font-bold ${
@@ -1713,12 +1754,12 @@ export default function Home() {
           {/* Cash Flow Table */}
           <div className="mt-8 mb-8 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-[#004D40] group">
+              <h2 className="text-2xl font-bold text-[#1D3834] group">
                 Cash Flow Table
               </h2>
               <button
                 onClick={downloadExcel}
-                className="px-4 py-2 bg-[#004D40] text-white rounded-md hover:bg-[#00695C] transition-colors"
+                className="px-4 py-2 bg-[#1D3834] text-white rounded-md hover:bg-[#00695C] transition-colors"
               >
                 Download Excel
               </button>
@@ -1727,11 +1768,11 @@ export default function Home() {
               <table className="min-w-full text-base">
                 <thead>
                   <tr className="bg-[#E0F2F1]">
-                    <th className="px-3 py-3 text-[#004D40]">Category</th>
+                    <th className="px-3 py-3 text-[#1D3834]">Category</th>
                     {Array(systemParams.projectLength + 2) // +2 for dev and construction years
                       .fill(0)
                       .map((_, i) => (
-                        <th key={i} className="px-3 py-3 text-[#004D40]">
+                        <th key={i} className="px-3 py-3 text-[#1D3834]">
                           Year {i}
                         </th>
                       ))}
@@ -1739,7 +1780,7 @@ export default function Home() {
                 </thead>
                 <tbody>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-[#004D40]">
+                    <td className="px-3 py-3 font-medium text-[#1D3834]">
                       DevEx
                     </td>
                     {Array(systemParams.projectLength + 2)
@@ -1758,7 +1799,7 @@ export default function Home() {
                       ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-[#004D40]">
+                    <td className="px-3 py-3 font-medium text-[#1D3834]">
                       CapEx
                     </td>
                     {Array(systemParams.projectLength + 2)
@@ -1779,7 +1820,7 @@ export default function Home() {
                       ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-[#004D40]">
+                    <td className="px-3 py-3 font-medium text-[#1D3834]">
                       Incentives
                     </td>
                     {Array(systemParams.projectLength + 2)
@@ -1807,7 +1848,7 @@ export default function Home() {
                       ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-[#004D40]">
+                    <td className="px-3 py-3 font-medium text-[#1D3834]">
                       Revenue
                     </td>
                     {Array(systemParams.projectLength + 2)
@@ -1832,7 +1873,7 @@ export default function Home() {
                       ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-[#004D40]">
+                    <td className="px-3 py-3 font-medium text-[#1D3834]">
                       OpEx
                     </td>
                     {Array(systemParams.projectLength + 2)
@@ -1853,7 +1894,7 @@ export default function Home() {
                       ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-[#004D40]">
+                    <td className="px-3 py-3 font-medium text-[#1D3834]">
                       Cash Flow
                     </td>
                     {cashFlows.map((flow, i) => (
@@ -1863,7 +1904,7 @@ export default function Home() {
                     ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-[#004D40]">
+                    <td className="px-3 py-3 font-medium text-[#1D3834]">
                       % of Pipeline
                     </td>
                     {Array(systemParams.projectLength + 2)
@@ -1884,18 +1925,28 @@ export default function Home() {
                       })}
                   </tr>
                   <tr>
-                    <td className="px-3 py-3 font-medium text-[#004D40] group relative">
+                    <td className="px-3 py-3 font-medium text-[#1D3834] group relative">
                       Expected Cash Flow
-                      <div className="inline-block">
-                        <span className="inline-block ml-1 text-xs text-[#004D40] cursor-help">
-                          ⓘ
-                        </span>
-                        <div className="absolute left-full top-0 ml-2 hidden group-hover:block bg-white border border-gray-200 p-2 text-sm text-gray-600 w-64 z-[100] shadow-lg">
-                          The expected cashflow indicates the <i>average</i>{" "}
-                          cashflow for a project in the pipeline, by weighting
-                          actual cashflows with the % of projects reaching each
-                          stage.
-                        </div>
+                      <span
+                        className="inline-block ml-1 text-xs text-[#004D40] cursor-help"
+                        onClick={() =>
+                          handleTooltipInteraction("expected-cash-flow")
+                        }
+                      >
+                        ⓘ
+                      </span>
+                      <div
+                        className={`absolute ${
+                          isMobile
+                            ? activeTooltip === "expected-cash-flow"
+                              ? "block"
+                              : "hidden"
+                            : "hidden group-hover:block"
+                        } bg-white border border-gray-200 p-2 rounded-md shadow-lg text-sm text-gray-600 w-64 z-[100] left-full ml-2 top-0`}
+                      >
+                        The expected cashflow indicates the average cashflow for
+                        a project in the pipeline, by weighting actual cashflows
+                        with the % of projects reaching each stage.
                       </div>
                     </td>
                     {expectedCashFlows.map((flow, i) => (
@@ -1915,15 +1966,15 @@ export default function Home() {
       <footer className="bg-white py-16 px-8 mt-16 border-t border-[#B2DFDB]">
         <div className="max-w-4xl mx-auto space-y-12">
           <div className="flex items-center mb-6">
-            <div className="h-8 w-1 bg-[#004D40] mr-4"></div>
-            <h2 className="text-2xl font-semibold text-[#004D40]">
+            <div className="h-8 w-1 bg-[#1D3834] mr-4"></div>
+            <h2 className="text-2xl font-semibold text-[#1D3834]">
               Disclaimer
             </h2>
           </div>
 
           {/* Directional Statement */}
           <div className="text-center">
-            <p className="text-2xl font-bold text-[#004D40] leading-relaxed">
+            <p className="text-2xl font-bold text-[#1D3834] leading-relaxed">
               The financial model is designed to provide directional insights
               rather than a precise financial forecast.
             </p>
@@ -1931,18 +1982,18 @@ export default function Home() {
 
           {/* Model Assumptions */}
           <div className="bg-[#F5F5F5] p-8 rounded-lg">
-            <h3 className="text-xl font-semibold text-[#004D40] mb-6">
+            <h3 className="text-xl font-semibold text-[#1D3834] mb-6">
               Model Assumptions
             </h3>
             <ul className="space-y-4 text-gray-700">
               <li className="flex items-start">
-                <span className="text-[#004D40] mr-3 text-xl">•</span>
+                <span className="text-[#1D3834] mr-3 text-xl">•</span>
                 <span className="text-lg">
                   No reliance on debt or external financing.
                 </span>
               </li>
               <li className="flex items-start">
-                <span className="text-[#004D40] mr-3 text-xl">•</span>
+                <span className="text-[#1D3834] mr-3 text-xl">•</span>
                 <span className="text-lg">
                   Specific financial parameters: a $140/MWh electricity rate
                   (derived from{" "}
@@ -1957,7 +2008,7 @@ export default function Home() {
                 </span>
               </li>
               <li className="flex items-start">
-                <span className="text-[#004D40] mr-3 text-xl">•</span>
+                <span className="text-[#1D3834] mr-3 text-xl">•</span>
                 <span className="text-lg">
                   All the projects in the portfolio are assumed to be of the
                   same size and have the same financial parameters.
@@ -1968,12 +2019,12 @@ export default function Home() {
 
           {/* Model Limitations */}
           <div className="bg-[#F5F5F5] p-8 rounded-lg">
-            <h3 className="text-xl font-semibold text-[#004D40] mb-6">
+            <h3 className="text-xl font-semibold text-[#1D3834] mb-6">
               Model Limitations
             </h3>
             <div className="space-y-8">
               <div>
-                <h4 className="text-lg font-medium text-[#004D40] mb-3">
+                <h4 className="text-lg font-medium text-[#1D3834] mb-3">
                   Risk Interdependencies
                 </h4>
                 <p className="text-gray-700 text-lg leading-relaxed">
@@ -1984,7 +2035,7 @@ export default function Home() {
               </div>
 
               <div>
-                <h4 className="text-lg font-medium text-[#004D40] mb-3">
+                <h4 className="text-lg font-medium text-[#1D3834] mb-3">
                   Approval Risk Conversion
                 </h4>
                 <p className="text-gray-700 text-lg leading-relaxed">
@@ -1997,7 +2048,7 @@ export default function Home() {
               </div>
 
               <div>
-                <h4 className="text-lg font-medium text-[#004D40] mb-3">
+                <h4 className="text-lg font-medium text-[#1D3834] mb-3">
                   Simplified Cost Timing
                 </h4>
                 <p className="text-gray-700 text-lg leading-relaxed">
