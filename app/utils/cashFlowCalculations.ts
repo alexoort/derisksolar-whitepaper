@@ -3,10 +3,11 @@ import { SystemParameters } from '../types/system';
 import { FinancialParameters } from '../types/financial';
 
 export function calculateGoNoGoProbability(
-  approvalRisk: number,
-  worstCaseScenario: number 
+  approvalRisk: number | undefined,
+  worstCaseScenario: number
 ): number {
-  return 1 - ((1 - worstCaseScenario) / 14) * (approvalRisk - 1);
+  const risk = approvalRisk ?? 1
+  return 1 - ((1 - worstCaseScenario) / 14) * (risk - 1);
 }
 
 export interface CashFlowResult {

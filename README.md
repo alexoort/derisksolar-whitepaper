@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pre-Development at Scale: Community Solar Financial Model
+
+A sophisticated financial modeling tool for community solar development that provides probabilistic insights into project viability and portfolio-level returns.
+
+## Overview
+
+This interactive web application helps solar developers analyze and understand the financial implications of community solar development at scale. It incorporates risk assessment, probability-based outcomes, and detailed cash flow analysis to provide a comprehensive view of both individual project and portfolio-level performance.
+
+To dive deeper into how this model was built and what it means for
+solar development, please visit [the whitepaper](https://derisksolar.us/).
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js (v14 or higher)
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone [repository-url]
+cd irr-web-demo
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Start the development server:
 
 ```bash
 npm run dev
 # or
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Model Inputs
 
-## Learn More
+1. **Risk Categories**
 
-To learn more about Next.js, take a look at the following resources:
+   - Set risk levels (High/Low) for each development category
+   - Adjust approval risk ratings (1-15)
+   - View probability calculations for project advancement
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2. **System Parameters**
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+   - Configure capacity factor
+   - Set system size
+   - Adjust project length
+   - Define degradation rates
 
-## Deploy on Vercel
+3. **Financial Parameters**
+   - Set base case CapEx
+   - Configure OpEx rates
+   - Adjust ITC rates
+   - Set electricity rates and escalation factors
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Viewing Results
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Toggle between individual project and portfolio views
+- Download detailed cash flow analysis in Excel format
+- View sensitivity analysis for different risk scenarios
+- Analyze risk category impacts through interactive graphs
+
+## Contributing
+
+We welcome contributions to improve the model and its assumptions, and for developers to adjust parameters to match their industry experience.
+
+---
+
+_Note: This is a financial modeling tool designed to provide directional insights rather than precise financial forecasts. Users should apply their own judgment and expertise when making investment decisions._
