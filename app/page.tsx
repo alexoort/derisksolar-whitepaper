@@ -141,17 +141,59 @@ function RiskCategories({
                   <input
                     type="number"
                     className="w-full p-2 border border-[#B2DFDB] rounded-md focus:outline-none focus:ring-2 focus:ring-[#00695C]"
-                    value={category.approvalRisk}
+                    value={category.approvalRisk || ""}
                     onChange={(e) => {
-                      const newValue = Math.min(
-                        15,
-                        Math.max(1, parseInt(e.target.value) || 1)
-                      );
                       const newCategories = [...riskCategories];
-                      newCategories[index].approvalRisk = newValue;
+                      const inputValue = e.target.value;
+
+                      // Allow empty input
+                      if (inputValue === "") {
+                        newCategories[index].approvalRisk = undefined;
+                        setRiskCategories(newCategories);
+                        return;
+                      }
+
+                      const numValue = parseInt(inputValue);
+
+                      // Only update if it's a valid number
+                      if (!isNaN(numValue)) {
+                        // Apply constraints and update only if within valid range
+                        if (numValue >= 1 && numValue <= 15) {
+                          newCategories[index].approvalRisk = numValue;
+                          newCategories[index].goNoGoProbability =
+                            calculateGoNoGoProbability(
+                              numValue,
+                              newCategories[index].worstCaseScenario
+                            );
+                          setRiskCategories(newCategories);
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const newCategories = [...riskCategories];
+                      const inputValue = e.target.value;
+
+                      // If empty on blur, reset to 1
+                      if (inputValue === "" || isNaN(parseInt(inputValue))) {
+                        newCategories[index].approvalRisk = 1;
+                        newCategories[index].goNoGoProbability =
+                          calculateGoNoGoProbability(
+                            1,
+                            newCategories[index].worstCaseScenario
+                          );
+                        setRiskCategories(newCategories);
+                        return;
+                      }
+
+                      // Ensure value is within constraints on blur
+                      const numValue = Math.min(
+                        15,
+                        Math.max(1, parseInt(inputValue))
+                      );
+                      newCategories[index].approvalRisk = numValue;
                       newCategories[index].goNoGoProbability =
                         calculateGoNoGoProbability(
-                          newValue,
+                          numValue,
                           newCategories[index].worstCaseScenario
                         );
                       setRiskCategories(newCategories);
@@ -1347,7 +1389,7 @@ export default function Home() {
             solar development.
             <br />
             <a
-              href="http://derisksolar.us/"
+              href="https://derisksolar.us/"
               className="underline hover:text-white"
             >
               Read the whitepaper →
