@@ -1395,7 +1395,7 @@ export default function Home() {
             solar development.
             <br />
             <a
-              href="https://derisksolar.us/"
+              href="https://www.paces.com/white-papers/pre-development-at-scale-modeling-risk-in-early-stage-solar-development"
               className="underline hover:text-white"
             >
               Read the whitepaper →
